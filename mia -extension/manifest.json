@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "MIA - Minutes Intelligent Assistant",
+  "version": "1.0",
+  "description": "This a Meeting Intelligent Assistant Extension that can help you to take notes, generate meeting minutes and action items.",
+  "action": {
+    "default_popup": "index.html"
+  },
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "scripting",
+    "tabCapture"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+
+
+"icons":{
+  "16":"/images/rec-button_16.png",
+  "48":"/images/rec-button_48.png",
+  "128":"/images/rec-button_128.png"
+},
+
+"action":{
+  "default_icon":{
+    "16":"/images/rec-button_16.png",
+    "48":"/images/rec-button_48.png",
+    "128":"/images/rec-button_128.png"
+  }
+}
+}
