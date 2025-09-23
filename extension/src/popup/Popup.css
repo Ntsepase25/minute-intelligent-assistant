@@ -1,0 +1,53 @@
+.popup-container {
+  width: 300px;
+  padding: 20px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.popup-container h1 {
+  font-size: 18px;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.counter {
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f5f5f5;
+  border-radius: 5px;
+}
+
+.counter button {
+  background: #61dafb;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.current-url {
+  margin-bottom: 15px;
+  padding: 10px;
+  background: #f0f8ff;
+  border-radius: 5px;
+}
+
+.current-url small {
+  word-break: break-all;
+  color: #666;
+}
+
+.color-btn {
+  width: 100%;
+  background: #764abc;
+  color: white;
+  border: none;
+  padding: 10px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.color-btn:hover {
+  background: #5a3796;
+}
