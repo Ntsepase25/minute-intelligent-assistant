@@ -4,4 +4,9 @@ export const authClient = createAuthClient({
   baseURL: import.meta.env.VITE_BETTER_AUTH_URL || "http://localhost:8080",
 });
 
-export const { signIn, signUp, useSession } = createAuthClient();
+export const {
+  signIn,
+  signOut,
+  signUp,
+  useSession,
+} = authClient;
