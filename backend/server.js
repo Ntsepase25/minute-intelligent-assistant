@@ -1,8 +1,15 @@
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
 import { auth } from "./lib/auth.ts";
+import cors from "cors";
 
 const app = express();
+
+// Enable CORS with credentials support
+app.use(cors({
+  origin: "http://localhost:5173", // Frontend URL
+  credentials: true // Allow credentials (cookies, auth headers)
+}));
 
 const PORT = process.env.PORT || 3000;
 
