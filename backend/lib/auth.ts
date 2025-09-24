@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { prisma } from "./prisma";
+import { prisma } from "./prisma.ts";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -13,4 +13,5 @@ export const auth = betterAuth({
       prompt: "select_account",
     },
   },
+  trustedOrigins: ["http://localhost:5173", "http://localhost:8080"],
 });
