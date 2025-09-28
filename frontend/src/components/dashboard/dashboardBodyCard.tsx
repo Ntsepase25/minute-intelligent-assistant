@@ -13,8 +13,8 @@ import { Button } from "../ui/button";
 
 const DashboardBodyCard = () => {
   return (
-    <Card className="rounded-sm flex flex-row">
-      <CardHeader className=" w-1/4 ml-2">
+    <Card className="rounded-sm flex flex-row gap-0">
+      <CardHeader className="w-1/6 ml-2 px-0 flex items-center justify-center">
         <div
           className="w-36 h-36 rounded-md "
           style={{
@@ -24,7 +24,7 @@ const DashboardBodyCard = () => {
           }}
         />
       </CardHeader>
-      <CardContent className="w-3/4">
+      <CardContent className="w-5/6 px-0">
         <CardTitle>MIA Progress Meeting</CardTitle>
         <CardDescription className="mt-4">
           Lorem ipsum dolor sit amet consectetur adipiscing elit. Sit amet

@@ -10,7 +10,7 @@ type Props = {
 
 const Header = ({ session, isPending }: Props) => {
   return (
-    <div className="flex w-full justify-between px-4 border-b">
+    <div className="flex w-full justify-between px-4 border-b mt-4">
       <h1 className="text-2xl font-bold flex items-center justify-center">
         MIA
       </h1>
