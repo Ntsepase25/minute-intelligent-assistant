@@ -31,7 +31,7 @@ const DashboardBodyCard = () => {
           consectetur adipiscing elit quisque faucibus ex. Adipiscing elit
           quisque faucibus ex sapien vitae pellentesque.
         </CardDescription>
-        <Button className="bg-purple-500 text-white mt-5">View Details</Button>
+        <Button className="bg-purple-500 hover:bg-purple-600 text-white mt-5">View Details</Button>
       </CardContent>
     </Card>
   );

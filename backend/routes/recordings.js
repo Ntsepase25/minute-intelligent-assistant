@@ -14,7 +14,6 @@ const upload = multer({
   },
   fileFilter: (req, file, cb) => {
     console.log("mimeType: ", file.mimetype);
-    // Allow audio and video files (video files from tabCapture contain audio)
     if (
       file.mimetype.startsWith("audio/") ||
       file.mimetype.startsWith("video/")
