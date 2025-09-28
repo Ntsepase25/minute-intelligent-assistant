@@ -2,6 +2,7 @@ import { User } from "better-auth";
 import { Avatar, AvatarImage, AvatarFallback } from "../ui/avatar";
 import React from "react";
 import { Loader2 } from "lucide-react";
+import { Button } from "../ui/button";
 
 type Props = {
   session?: User;
@@ -30,7 +31,9 @@ const Header = ({ session, isPending }: Props) => {
                 </AvatarFallback>
               </Avatar>
             ) : (
-              <Loader2 className="h-4 w-4 text-purple-500" />
+              <Button className="bg-purple-500 hover:bg-purple-600" asChild>
+                <a href="/sign-in">Login</a>
+              </Button>
             )}
           </div>
         )}

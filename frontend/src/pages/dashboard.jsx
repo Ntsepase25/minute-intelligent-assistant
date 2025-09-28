@@ -11,7 +11,7 @@ const DashBoard = () => {
       <div className="md:w-[80%] w-full mx-auto">
         {isPending ? (
           <Header session={null} isPending={true} />
-        ) : session.user ? (
+        ) : session && session.user ? (
           <Header session={session.user} isPending={isPending} />
         ) : (
           <Header session={null} isPending={isPending} />
