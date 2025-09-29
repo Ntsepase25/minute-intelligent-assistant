@@ -1,131 +1,124 @@
 import express from "express";
 import multer from "multer";
-import { UTApi } from "uploadthing/server";
+import path from "path";
+import os from "os";
+import fs from "fs";
+import { Readable } from "node:stream";
+import ffmpeg from "fluent-ffmpeg";
+import ffmpegStatic from "ffmpeg-static";
+import { UTApi, UTFile } from "uploadthing/server"; // server SDK
 import { auth } from "../lib/auth.ts";
 import { prisma } from "../lib/prisma.ts";
 import { createRecording } from "../contollers/recordings.controller.ts";
-import ffmpeg from "fluent-ffmpeg";
-import ffmpegStatic from "ffmpeg-static";
-import { Readable } from "node:stream";
 import { whisper } from "whisper-node";
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
-const bufferToStream = (buffer) => {
-  const stream = new Readable();
-  stream.push(buffer);
-  stream.push(null);
-  return stream;
-};
+// --- Helpers ---
+const tmpDir = path.join(os.tmpdir(), "uploads");
+if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
 
-// Helper function to transcribe audio from URL
-const transcribeRecording = async (fileUrl, recordingId, saveToDb = true) => {
-  console.log("Downloading audio file for transcription:", fileUrl);
-  const response = await fetch(fileUrl);
-  if (!response.ok) {
-    throw new Error(`Failed to download audio file: ${response.statusText}`);
-  }
-
-  const audioBuffer = await response.arrayBuffer();
-  const tempFileName = `temp_${recordingId}.wav`;
-  const tempFilePath = `/tmp/${tempFileName}`;
-
-  // Write to temporary file for whisper-node
-  const fs = await import("fs");
-  fs.writeFileSync(tempFilePath, Buffer.from(audioBuffer));
-
-  try {
-    // Transcribe the audio file
-    const result = await whisper(tempFilePath, {
-      modelName: "base",
-    });
-
-    console.log("Transcription completed:", result);
-    console.log("Result type:", typeof result);
-    console.log("Is array:", Array.isArray(result));
-
-    // Handle undefined or null result
-    if (!result) {
-      throw new Error("Transcription returned no result - audio file may be invalid or too short");
-    }
-
-    // Extract text from result - whisper-node returns an array of objects with speech property
-    let transcriptText;
-    if (Array.isArray(result) && result.length > 0) {
-      transcriptText = result.map(segment => segment.speech).join(' ');
-    } else if (typeof result === 'string') {
-      transcriptText = result;
-    } else if (result.speech) {
-      transcriptText = result.speech;
-    } else {
-      throw new Error(`Unexpected transcription result format: ${JSON.stringify(result)}`);
-    }
-
-    // Save transcript to database if requested
-    if (saveToDb) {
-      await prisma.recording.update({
-        where: { id: recordingId },
-        data: { transcript: transcriptText },
-      });
-      console.log("Transcript saved to database");
-    }
-
-    // Clean up temporary file
-    fs.unlinkSync(tempFilePath);
-
-    return transcriptText;
-  } catch (transcriptionError) {
-    // Clean up temporary file even if transcription fails
-    try {
-      fs.unlinkSync(tempFilePath);
-    } catch (cleanupError) {
-      console.error("Failed to clean up temp file:", cleanupError);
-    }
-    throw transcriptionError;
-  }
-};
-
-const recordingsRouter = express.Router();
-
-// Configure multer for handling multipart/form-data (file uploads)
+// Use disk storage for multer (no in-memory buffers)
 const upload = multer({
-  storage: multer.memoryStorage(), // Store in memory for processing
-  limits: {
-    fileSize: 50 * 1024 * 1024, // 50MB limit
-  },
+  storage: multer.diskStorage({
+    destination: tmpDir,
+    filename: (req, file, cb) => {
+      const unique = Date.now() + "-" + Math.floor(Math.random() * 1e6);
+      // keep original extension
+      cb(null, `${unique}-${file.originalname}`);
+    },
+  }),
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
-    console.log("mimeType: ", file.mimetype);
     if (
       file.mimetype.startsWith("audio/") ||
       file.mimetype.startsWith("video/")
-    ) {
+    )
       cb(null, true);
-    } else {
-      cb(new Error("Only audio and video files are allowed"), false);
-    }
+    else cb(new Error("Only audio and video files are allowed"), false);
   },
 });
 
-// Initialize UploadThing API
-const utapi = new UTApi({
-  apiKey: process.env.UPLOADTHING_SECRET,
-});
+const utapi = new UTApi({ apiKey: process.env.UPLOADTHING_SECRET });
 
+// Transcribe a local WAV file path using whisper-node and optionally save to DB
+async function transcribeFromLocalPath(wavPath, recordingId, saveToDb = true) {
+  if (!fs.existsSync(wavPath))
+    throw new Error("WAV file not found: " + wavPath);
+
+  // whisper-node in your repo was previously called with a path
+  const result = await whisper(wavPath, { modelName: "base" });
+
+  if (!result) throw new Error("Transcription returned no result");
+
+  let transcriptText;
+  if (Array.isArray(result) && result.length > 0) {
+    transcriptText = result
+      .map((s) => s.speech || s.text || "")
+      .join(" ")
+      .trim();
+  } else if (typeof result === "string") {
+    transcriptText = result;
+  } else if (result.speech) {
+    transcriptText = result.speech;
+  } else if (result.text) {
+    transcriptText = result.text;
+  } else {
+    throw new Error(
+      "Unexpected transcription result format: " + JSON.stringify(result)
+    );
+  }
+
+  if (saveToDb && recordingId) {
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { transcript: transcriptText },
+    });
+  }
+
+  return transcriptText;
+}
+
+// Convert any uploaded file on disk to a 16kHz mono WAV on disk (returns wav path)
+async function convertToWavOnDisk(inputPath) {
+  const id = Date.now() + "-" + Math.floor(Math.random() * 1e6);
+  const outName = `conv-${id}.wav`;
+  const outPath = path.join(tmpDir, outName);
+
+  await new Promise((resolve, reject) => {
+    ffmpeg(inputPath)
+      .audioCodec("pcm_s16le")
+      .audioFrequency(16000)
+      .audioChannels(1)
+      .format("wav")
+      .on("error", (err) => reject(err))
+      .on("end", () => resolve())
+      .save(outPath);
+  });
+
+  return outPath;
+}
+
+const recordingsRouter = express.Router();
+
+// The patched /save route: accepts an uploaded file (saved to disk), converts to WAV on disk,
+// transcribes from the WAV file, uploads the final WAV to UploadThing via server SDK (stream/formdata),
+// and cleans up temporary files.
 recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
+  let uploadedFilePath;
+  let convertedWavPath;
+  let recordingRecord;
+
   try {
-    if (!req.file) {
+    if (!req.file)
       return res.status(400).json({ error: "No recording file provided" });
-    }
 
-    console.log("data received: ", req.body.metadata);
-
-    // Parse metadata if it's a string
-    let metadata;
+    // Parse metadata
+    let metadata = {};
     if (typeof req.body.metadata === "string") {
       try {
         metadata = JSON.parse(req.body.metadata);
       } catch (e) {
-        console.error("Failed to parse metadata:", e);
         metadata = {};
       }
     } else {
@@ -135,204 +128,215 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
     const meetingId = metadata.meetingId || null;
     const meetingPlatform = metadata.meetingPlatform || null;
 
-    console.log("Received recording file:", req.file.originalname);
-    console.log("File size:", req.file.size);
-    console.log("File type:", req.file.mimetype);
-
+    // Auth
     const userSession = await auth.api.getSession({ headers: req.headers });
+    if (!userSession)
+      return res.status(403).json({ message: "User not logged in" });
 
-    if (!userSession) {
-      return res.status(403).json({
-        message: "User not logged in",
-      });
-    }
+    uploadedFilePath = req.file.path; // disk path
 
-    // Prepare file for upload; convert to WAV if not already WAV
-    let fileBuffer = req.file.buffer;
-    let fileName = req.file.originalname;
-    let mimeType = req.file.mimetype;
+    // Convert to WAV on disk (if already WAV, convertToWavOnDisk will still run but ffmpeg will quickly copy)
+    convertedWavPath = await convertToWavOnDisk(uploadedFilePath);
 
-    if (
-      req.file.mimetype !== "audio/wav" &&
-      req.file.mimetype !== "audio/x-wav"
-    ) {
-      console.log(`Converting ${req.file.mimetype} to WAV format...`);
+    // Create DB recording entry before doing heavy work so we have an id to reference
+    recordingRecord = await createRecording(
+      null,
+      userSession.user,
+      meetingId,
+      meetingPlatform
+    );
+    // createRecording should return the saved recording object including id. Adjust if your controller differs.
 
-      const input = bufferToStream(req.file.buffer);
-      const wavBuffer = await new Promise((resolve, reject) => {
-        const chunks = [];
-        let resolved = false;
+    // Transcribe from the WAV file (this runs the heavy model in a separate process if whisper-node spawns it)
+    const transcriptText = await transcribeFromLocalPath(
+      convertedWavPath,
+      recordingRecord.id,
+      true
+    );
 
-        let ffmpegCommand = ffmpeg(input)
-          .audioCodec("pcm_s16le")
-          .audioFrequency(16000)  // Set to 16kHz as required by whisper-node
-          .audioChannels(1)       // Mono audio
-          .format("wav");
+    // Upload the WAV to UploadThing - prefer streaming via FormData if server SDK supports it.
+    // Approach A: use UTApi.uploadFiles with FormData containing a ReadStream (Node 18+ supports FormData)
+    // Approach B (fallback): use UTFile + fs.readFileSync (may buffer file into memory)
 
-        // Handle video files by removing video track
-        if (req.file.mimetype.startsWith("video/")) {
-          ffmpegCommand = ffmpegCommand.outputOptions("-vn");
-        }
-
-        const stream = ffmpegCommand
-          .on("error", (err) => {
-            if (!resolved) {
-              resolved = true;
-              console.error("FFmpeg conversion error:", err);
-              reject(err);
-            }
-          })
-          .on("end", () => {
-            if (!resolved) {
-              resolved = true;
-              console.log("Conversion to WAV completed successfully");
-              resolve(Buffer.concat(chunks));
-            }
-          })
-          .pipe();
-
-        stream.on("data", (chunk) => {
-          chunks.push(chunk);
-        });
-
-        stream.on("end", () => {
-          if (!resolved) {
-            resolved = true;
-            console.log("Conversion to WAV completed successfully");
-            resolve(Buffer.concat(chunks));
-          }
-        });
-
-        stream.on("error", (err) => {
-          if (!resolved) {
-            resolved = true;
-            console.error("Stream error:", err);
-            reject(err);
-          }
-        });
+    let uploadResp;
+    try {
+      // Try FormData + utapi.uploadFiles(formData.getAll('files')) pattern
+      const FormDataImpl =
+        globalThis.FormData || (await import("form-data")).default;
+      const form = new FormDataImpl();
+      form.append("files", fs.createReadStream(convertedWavPath), {
+        filename: path.basename(convertedWavPath),
+        contentType: "audio/wav",
       });
 
-      fileBuffer = wavBuffer;
-      fileName = fileName.replace(/\.[^/.]+$/, "") + ".wav";
-      mimeType = "audio/wav";
+      // Some UTApi versions expect the array of files (formData.getAll('files'))
+      let filesForUpload;
+      if (typeof form.getAll === "function") {
+        filesForUpload = form.getAll("files");
+      } else {
+        // node-form-data doesn't implement getAll; instead many SDKs accept the form instance directly.
+        filesForUpload = form;
+      }
 
-      console.log(
-        `File converted to WAV. New size: ${fileBuffer.length} bytes`
+      uploadResp = await utapi.uploadFiles(filesForUpload);
+    } catch (err) {
+      console.warn(
+        "Streamed upload to UTApi failed, falling back to buffered upload:",
+        err?.message || err
       );
-    } else {
-      console.log("File is already in WAV format, no conversion needed");
+
+      // Fallback: read file into buffer and use UTFile helper. This WILL buffer file into memory but is safe for small files.
+      const fileBuffer = fs.readFileSync(convertedWavPath);
+      // UTFile accepts BlobPart[] (Buffer is acceptable in most environments)
+      const utFile = new UTFile([fileBuffer], path.basename(convertedWavPath), {
+        type: "audio/wav",
+        customId: recordingRecord.id,
+      });
+      uploadResp = await utapi.uploadFiles([utFile]);
     }
 
-    // Upload to UploadThing
-    const uploadResult = await utapi.uploadFiles([
-      new File([fileBuffer], fileName, { type: mimeType }),
-    ]);
+    // uploadResp should be an array with metadata including ufsUrl
+    const fileUrl =
+      Array.isArray(uploadResp) &&
+      uploadResp[0] &&
+      uploadResp[0].data &&
+      uploadResp[0].data.ufsUrl
+        ? uploadResp[0].data.ufsUrl
+        : (uploadResp && uploadResp[0] && uploadResp[0].url) || null;
 
-    if (uploadResult[0].data) {
-      const fileUrl = uploadResult[0].data.ufsUrl;
-      console.log("File uploaded to UploadThing:", fileUrl);
+    // Update the recording entry with fileUrl if needed
+    if (fileUrl) {
+      await prisma.recording.update({
+        where: { id: recordingRecord.id },
+        data: { recordingUrl: fileUrl },
+      });
+    }
 
-      const recording = await createRecording(
+    // Cleanup local temp files
+    try {
+      if (fs.existsSync(uploadedFilePath)) fs.unlinkSync(uploadedFilePath);
+    } catch (e) {
+      console.error("cleanup uploadedFilePath", e);
+    }
+    try {
+      if (fs.existsSync(convertedWavPath)) fs.unlinkSync(convertedWavPath);
+    } catch (e) {
+      console.error("cleanup convertedWavPath", e);
+    }
+
+    return res
+      .status(201)
+      .json({
+        message: "Recording uploaded, converted and transcribed",
         fileUrl,
-        userSession.user,
-        meetingId,
-        meetingPlatform
-      );
-
-      if (typeof recording === "string" || recording instanceof String) {
-        return res
-          .status(500)
-          .json({ error: "Failed to save recording to DB" });
-      }
-
-      console.log("Recording saved to DB:", recording);
-
-      // Automatically transcribe the recording
-      console.log("Starting transcription for uploaded recording...");
-      try {
-        await transcribeRecording(fileUrl, recording.id, true);
-      } catch (transcriptionError) {
-        console.error("Failed to transcribe recording:", transcriptionError);
-        // Don't throw the error - we still want to return success for the upload
-      }
-
-      // Here you can save the recording info to your database
-      const recordingData = {
-        fileName: req.file.originalname,
-        fileUrl: fileUrl,
-        fileSize: req.file.size,
-        mimeType: req.file.mimetype,
-        uploadedAt: new Date(),
-        userId: userSession.user.id,
-        recordingId: recording.id,
-        // Add user ID if you have authentication
-      };
-
-      return res.status(201).json({
-        message: "Recording uploaded and transcription started successfully",
-        fileUrl: fileUrl,
-        data: recordingData,
+        transcript: transcriptText,
+        recordingId: recordingRecord.id,
       });
-    } else {
-      throw new Error("Upload failed");
-    }
   } catch (error) {
-    console.error("Upload error:", error);
-    res.status(500).json({
-      error: "Failed to upload recording",
-      details: error.message,
-    });
+    console.error("Save endpoint error:", error);
+
+    // Attempt cleanup on error
+    try {
+      if (uploadedFilePath && fs.existsSync(uploadedFilePath))
+        fs.unlinkSync(uploadedFilePath);
+    } catch (e) {}
+    try {
+      if (convertedWavPath && fs.existsSync(convertedWavPath))
+        fs.unlinkSync(convertedWavPath);
+    } catch (e) {}
+
+    return res
+      .status(500)
+      .json({
+        error: "Failed to upload recording",
+        details: error?.message || String(error),
+      });
   }
 });
 
-recordingsRouter.get("/transcripts/:recordingId", async (req, res) => {
-  const { recordingId } = req.params;
-  const query = req.query;
-
-  console.log("Fetching transcripts for recordingId:", recordingId);
-  console.log("Query params:", query);
-
+recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
+  let downloadedFilePath;
+  let convertedWavPath;
+  
   try {
+    const { recordingId } = req.params;
     const userSession = await auth.api.getSession({ headers: req.headers });
-
-    if (!userSession) {
-      return res.status(401).json({
-        message: "User not logged in",
-      });
-    }
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
 
     const recording = await prisma.recording.findUnique({
       where: { id: recordingId },
     });
-
-    if (typeof recording === "string" || recording instanceof String) {
-      return res.status(500).json({ error: "Failed to fetch recording" });
-    }
-
-    if (!recording) {
+    if (!recording)
       return res.status(404).json({ message: "Recording not found" });
-    }
-
-    if (recording.userId !== userSession.user.id) {
+    if (recording.userId !== userSession.user.id)
       return res.status(403).json({ message: "Access denied" });
-    }
 
-    // Check if transcript already exists
-    if (recording.transcript) {
+    if (recording.transcript)
       return res.status(200).json({ transcripts: recording.transcript });
+
+    // If no transcript saved, attempt to transcribe from the stored file
+    if (!recording.recordingUrl) {
+      return res.status(400).json({ message: "No recording file available for transcription" });
     }
 
-    // Transcribe the recording and save to database
-    const transcriptText = await transcribeRecording(
-      recording.fileUrl,
+    // Download the file from UploadThing to a temporary location
+    const response = await fetch(recording.recordingUrl);
+    if (!response.ok) {
+      throw new Error(`Failed to download recording: ${response.statusText}`);
+    }
+
+    // Save downloaded file to temp directory
+    const fileExtension = path.extname(recording.recordingUrl) || '.wav';
+    const tempFileName = `download-${Date.now()}-${Math.floor(Math.random() * 1e6)}${fileExtension}`;
+    downloadedFilePath = path.join(tmpDir, tempFileName);
+    
+    const buffer = await response.arrayBuffer();
+    fs.writeFileSync(downloadedFilePath, Buffer.from(buffer));
+
+    // Convert to WAV format for transcription
+    convertedWavPath = await convertToWavOnDisk(downloadedFilePath);
+
+    // Transcribe the WAV file and save to database
+    const transcriptText = await transcribeFromLocalPath(
+      convertedWavPath,
       recordingId,
       true
     );
 
-    res.status(200).json({ transcripts: transcriptText });
-  } catch (error) {
-    console.error("Error fetching transcripts:", error);
-    res.status(500).json({ error: "Failed to fetch transcripts" });
+    // Cleanup temporary files
+    try {
+      if (fs.existsSync(downloadedFilePath)) fs.unlinkSync(downloadedFilePath);
+    } catch (e) {
+      console.error("cleanup downloadedFilePath", e);
+    }
+    try {
+      if (fs.existsSync(convertedWavPath)) fs.unlinkSync(convertedWavPath);
+    } catch (e) {
+      console.error("cleanup convertedWavPath", e);
+    }
+
+    return res.status(200).json({ 
+      transcripts: transcriptText,
+      message: "Recording transcribed successfully"
+    });
+  } catch (err) {
+    console.error("Transcription error:", err);
+    
+    // Cleanup on error
+    try {
+      if (downloadedFilePath && fs.existsSync(downloadedFilePath))
+        fs.unlinkSync(downloadedFilePath);
+    } catch (e) {}
+    try {
+      if (convertedWavPath && fs.existsSync(convertedWavPath))
+        fs.unlinkSync(convertedWavPath);
+    } catch (e) {}
+    
+    return res.status(500).json({ 
+      error: "Failed to transcribe recording",
+      details: err?.message || String(err)
+    });
   }
 });
 

@@ -80,7 +80,7 @@ model Recording {
   meetingId       String?
   userId          String
   meetingPlatform String?
-  recordingUrl    String
+  recordingUrl    String?
   transcript      String?
   summary         String?
   createdAt       DateTime @default(now())
