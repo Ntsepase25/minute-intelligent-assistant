@@ -2,11 +2,13 @@ import React from "react";
 import { Button } from "../ui/button";
 import { CloudUpload, Funnel } from "lucide-react";
 import DashboardBodyCard from "./dashboardBodyCard";
+import type { recording } from "../../lib/types";
 
+type Props = {
+  recordings: recording[];
+};
 
-type Props = {};
-
-const DashboardBody = (props: Props) => {
+const DashboardBody = ({ recordings }: Props) => {
   return (
     <div className="w-full flex flex-col">
       <div className="flex lg:flex-row flex-col gap-4 justify-between mx-2">
@@ -29,8 +31,8 @@ const DashboardBody = (props: Props) => {
       </div>
       <div className="flex gap-2 items-center mt-5 ">
         <div className="flex flex-col p-4 w-full gap-4">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <DashboardBodyCard key={index} />
+          {recordings.map((recording) => (
+            <DashboardBodyCard key={recording.id} recording={recording} />
           ))}
         </div>
       </div>

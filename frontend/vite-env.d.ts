@@ -2,6 +2,7 @@
 
 interface ImportMetaEnv {
   readonly VITE_BETTER_AUTH_URL: string
+  readonly VITE_BACKEND_BASE_URL: string
   // more env variables...
 }
 

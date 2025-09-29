@@ -12,6 +12,7 @@ import { prisma } from "../lib/prisma.ts";
 import { createRecording } from "../contollers/recordings.controller.ts";
 import { GoogleGenAI } from "@google/genai";
 import { whisper } from "whisper-node";
+import { fromNodeHeaders } from "better-auth/node";
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
@@ -117,6 +118,27 @@ async function convertToWavOnDisk(inputPath) {
 
 const recordingsRouter = express.Router();
 
+recordingsRouter.get("/", async (req, res) => {
+  try {
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+
+    console.log("User session:", userSession);
+    if (!userSession)
+      return res.status(403).json({ message: "User not logged in" });
+
+    const recordings = await prisma.recording.findMany({
+      where: { userId: userSession.user.id },
+      orderBy: { createdAt: "desc" },
+    });
+    return res.status(200).json({ recordings });
+  } catch (error) {
+    console.error("Fetch recordings error:", error);
+    return res.status(500).json({ error: "Failed to fetch recordings" });
+  }
+});
+
 // The patched /save route: accepts an uploaded file (saved to disk), converts to WAV on disk,
 // transcribes from the WAV file, uploads the final WAV to UploadThing via server SDK (stream/formdata),
 // and cleans up temporary files.
@@ -145,7 +167,9 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
     const meetingPlatform = metadata.meetingPlatform || null;
 
     // Auth
-    const userSession = await auth.api.getSession({ headers: req.headers });
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
     if (!userSession)
       return res.status(403).json({ message: "User not logged in" });
 
@@ -273,7 +297,9 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
 
   try {
     const { recordingId } = req.params;
-    const userSession = await auth.api.getSession({ headers: req.headers });
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
     if (!userSession)
       return res.status(401).json({ message: "User not logged in" });
 
@@ -361,7 +387,9 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
 recordingsRouter.get("/summary/:recordingId", async (req, res) => {
   try {
     const { recordingId } = req.params;
-    const userSession = await auth.api.getSession({ headers: req.headers });
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
     if (!userSession)
       return res.status(401).json({ message: "User not logged in" });
 
@@ -398,6 +426,30 @@ recordingsRouter.get("/summary/:recordingId", async (req, res) => {
       error: "Failed to generate summary",
       details: err?.message || String(err),
     });
+  }
+});
+
+recordingsRouter.get("/:recordingId", async (req, res) => {
+  try {
+    const { recordingId } = req.params;
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const recording = await prisma.recording.findUnique({
+      where: { id: recordingId },
+    });
+    if (!recording)
+      return res.status(404).json({ message: "Recording not found" });
+    if (recording.userId !== userSession.user.id)
+      return res.status(403).json({ message: "Access denied" });
+
+    return res.status(200).json({ recording });
+  } catch (error) {
+    console.error("Fetch recording error:", error);
+    return res.status(500).json({ error: "Failed to fetch recording" });
   }
 });
 
