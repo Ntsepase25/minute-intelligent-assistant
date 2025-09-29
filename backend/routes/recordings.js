@@ -10,6 +10,7 @@ import { UTApi, UTFile } from "uploadthing/server"; // server SDK
 import { auth } from "../lib/auth.ts";
 import { prisma } from "../lib/prisma.ts";
 import { createRecording } from "../contollers/recordings.controller.ts";
+import { GoogleGenAI } from "@google/genai";
 import { whisper } from "whisper-node";
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
@@ -41,6 +42,19 @@ const upload = multer({
 
 const utapi = new UTApi({ apiKey: process.env.UPLOADTHING_SECRET });
 
+async function generateSummary(transcript) {
+  const content = `Summarize the following meeting transcript in a concise manner, highlighting key points and action items:\n\n${transcript}\n\nSummary:`;
+  // Make sure to include the following import:
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash",
+    contents: content,
+  });
+  console.log(response.text);
+  return response.text;
+}
+
 // Transcribe a local WAV file path using whisper-node and optionally save to DB
 async function transcribeFromLocalPath(wavPath, recordingId, saveToDb = true) {
   if (!fs.existsSync(wavPath))
@@ -69,6 +83,8 @@ async function transcribeFromLocalPath(wavPath, recordingId, saveToDb = true) {
     );
   }
 
+  const summary = await generateSummary(transcriptText);
+
   if (saveToDb && recordingId) {
     await prisma.recording.update({
       where: { id: recordingId },
@@ -76,7 +92,7 @@ async function transcribeFromLocalPath(wavPath, recordingId, saveToDb = true) {
     });
   }
 
-  return transcriptText;
+  return { transcriptText, summary };
 }
 
 // Convert any uploaded file on disk to a 16kHz mono WAV on disk (returns wav path)
@@ -148,7 +164,7 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
     // createRecording should return the saved recording object including id. Adjust if your controller differs.
 
     // Transcribe from the WAV file (this runs the heavy model in a separate process if whisper-node spawns it)
-    const transcriptText = await transcribeFromLocalPath(
+    const { transcriptText, summary } = await transcribeFromLocalPath(
       convertedWavPath,
       recordingRecord.id,
       true
@@ -224,14 +240,13 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
       console.error("cleanup convertedWavPath", e);
     }
 
-    return res
-      .status(201)
-      .json({
-        message: "Recording uploaded, converted and transcribed",
-        fileUrl,
-        transcript: transcriptText,
-        recordingId: recordingRecord.id,
-      });
+    return res.status(201).json({
+      message: "Recording uploaded, converted and transcribed",
+      fileUrl,
+      transcript: transcriptText,
+      summary,
+      recordingId: recordingRecord.id,
+    });
   } catch (error) {
     console.error("Save endpoint error:", error);
 
@@ -245,19 +260,17 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
         fs.unlinkSync(convertedWavPath);
     } catch (e) {}
 
-    return res
-      .status(500)
-      .json({
-        error: "Failed to upload recording",
-        details: error?.message || String(error),
-      });
+    return res.status(500).json({
+      error: "Failed to upload recording",
+      details: error?.message || String(error),
+    });
   }
 });
 
 recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
   let downloadedFilePath;
   let convertedWavPath;
-  
+
   try {
     const { recordingId } = req.params;
     const userSession = await auth.api.getSession({ headers: req.headers });
@@ -277,7 +290,9 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
 
     // If no transcript saved, attempt to transcribe from the stored file
     if (!recording.recordingUrl) {
-      return res.status(400).json({ message: "No recording file available for transcription" });
+      return res
+        .status(400)
+        .json({ message: "No recording file available for transcription" });
     }
 
     // Download the file from UploadThing to a temporary location
@@ -287,10 +302,12 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
     }
 
     // Save downloaded file to temp directory
-    const fileExtension = path.extname(recording.recordingUrl) || '.wav';
-    const tempFileName = `download-${Date.now()}-${Math.floor(Math.random() * 1e6)}${fileExtension}`;
+    const fileExtension = path.extname(recording.recordingUrl) || ".wav";
+    const tempFileName = `download-${Date.now()}-${Math.floor(
+      Math.random() * 1e6
+    )}${fileExtension}`;
     downloadedFilePath = path.join(tmpDir, tempFileName);
-    
+
     const buffer = await response.arrayBuffer();
     fs.writeFileSync(downloadedFilePath, Buffer.from(buffer));
 
@@ -298,7 +315,7 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
     convertedWavPath = await convertToWavOnDisk(downloadedFilePath);
 
     // Transcribe the WAV file and save to database
-    const transcriptText = await transcribeFromLocalPath(
+    const { transcriptText, summary } = await transcribeFromLocalPath(
       convertedWavPath,
       recordingId,
       true
@@ -316,13 +333,14 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
       console.error("cleanup convertedWavPath", e);
     }
 
-    return res.status(200).json({ 
+    return res.status(200).json({
       transcripts: transcriptText,
-      message: "Recording transcribed successfully"
+      summary,
+      message: "Recording transcribed successfully",
     });
   } catch (err) {
     console.error("Transcription error:", err);
-    
+
     // Cleanup on error
     try {
       if (downloadedFilePath && fs.existsSync(downloadedFilePath))
@@ -332,10 +350,53 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
       if (convertedWavPath && fs.existsSync(convertedWavPath))
         fs.unlinkSync(convertedWavPath);
     } catch (e) {}
-    
-    return res.status(500).json({ 
+
+    return res.status(500).json({
       error: "Failed to transcribe recording",
-      details: err?.message || String(err)
+      details: err?.message || String(err),
+    });
+  }
+});
+
+recordingsRouter.get("/summary/:recordingId", async (req, res) => {
+  try {
+    const { recordingId } = req.params;
+    const userSession = await auth.api.getSession({ headers: req.headers });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const recording = await prisma.recording.findUnique({
+      where: { id: recordingId },
+    });
+    if (!recording)
+      return res.status(404).json({ message: "Recording not found" });
+    if (recording.userId !== userSession.user.id)
+      return res.status(403).json({ message: "Access denied" });
+
+    if (recording.summary)
+      return res.status(200).json({ summary: recording.summary });
+    if (!recording.transcript)
+      return res
+        .status(400)
+        .json({ message: "No transcript available to generate summary" });
+
+    // Generate summary from existing transcript
+    const summary = await generateSummary(recording.transcript);
+
+    // Save summary to DB
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { summary },
+    });
+
+    return res
+      .status(200)
+      .json({ summary, message: "Summary generated successfully" });
+  } catch (err) {
+    console.error("Summary generation error:", err);
+    return res.status(500).json({
+      error: "Failed to generate summary",
+      details: err?.message || String(err),
     });
   }
 });
