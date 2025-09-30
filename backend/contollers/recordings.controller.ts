@@ -5,7 +5,8 @@ export const createRecording = async (
   fileUrl: string | null,
   user: User,
   meetingId: string | null,
-  meetingPlatform: string | null
+  meetingPlatform: string | null,
+  googleOperationName?: string
 ) => {
   const recording = await prisma.recording.create({
     data: {
@@ -14,7 +15,8 @@ export const createRecording = async (
       meetingPlatform: meetingPlatform,
       user: {
         connect: { id: user.id }
-      }
+      },
+      googleOperationName: googleOperationName
     },
   });
 

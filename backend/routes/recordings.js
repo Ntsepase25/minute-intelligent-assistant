@@ -13,6 +13,7 @@ import { createRecording } from "../contollers/recordings.controller.ts";
 import { GoogleGenAI } from "@google/genai";
 import { whisper } from "whisper-node";
 import { fromNodeHeaders } from "better-auth/node";
+import { googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
 
 ffmpeg.setFfmpegPath(ffmpegStatic);
 
@@ -44,56 +45,179 @@ const upload = multer({
 const utapi = new UTApi({ apiKey: process.env.UPLOADTHING_SECRET });
 
 async function generateSummary(transcript) {
-  const content = `Summarize the following meeting transcript in a concise manner, highlighting key points and action items:\n\n${transcript}\n\nSummary:`;
-  // Make sure to include the following import:
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  console.log("🤖 [SUMMARY] Starting summary generation...");
+  console.log(
+    "🤖 [SUMMARY] Transcript length:",
+    transcript?.length || 0,
+    "characters"
+  );
 
-  const response = await ai.models.generateContent({
-    model: "gemini-2.5-flash",
-    contents: content,
-  });
-  console.log(response.text);
-  return response.text;
+  try {
+    // Handle cases where transcript is empty or indicates an error
+    if (
+      !transcript ||
+      transcript.trim().length === 0 ||
+      transcript.includes("No audio content detected") ||
+      transcript.includes("No speech detected") ||
+      transcript.includes("Transcription failed")
+    ) {
+      console.log(
+        "🤖 [SUMMARY] Skipping summary - invalid transcript detected"
+      );
+      return "No summary available - unable to transcribe audio content.";
+    }
+
+    const googleApiKey = process.env.GEMINI_API_KEY;
+    if (!googleApiKey) {
+      console.log("🤖 [SUMMARY] ❌ Google API key not configured");
+      return "Google API key not configured";
+    }
+
+    // console.log("api key: ", googleApiKey);
+
+    console.log("🤖 [SUMMARY] Sending request to Google Gemini API...");
+    const content = `Summarize the following meeting transcript in a concise manner, highlighting key points and action items:\n\n${transcript}\n\nSummary:`;
+
+    const ai = new GoogleGenAI({ apiKey: googleApiKey });
+
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-flash",
+      contents: content,
+    });
+
+    console.log("🤖 [SUMMARY] ✅ Summary generated successfully");
+    console.log(
+      "🤖 [SUMMARY] Summary length:",
+      response.text?.length || 0,
+      "characters"
+    );
+    return (
+      response.text || "Summary generation completed but no content returned."
+    );
+  } catch (error) {
+    console.error("🤖 [SUMMARY] ❌ Summary generation error:", error);
+    return "Failed to generate summary due to an error.";
+  }
 }
 
 // Transcribe a local WAV file path using whisper-node and optionally save to DB
 async function transcribeFromLocalPath(wavPath, recordingId, saveToDb = true) {
+  console.log("🎤 [TRANSCRIBE] Starting transcription process...");
+  console.log("🎤 [TRANSCRIBE] WAV file path:", wavPath);
+  console.log("🎤 [TRANSCRIBE] Recording ID:", recordingId);
+
   if (!fs.existsSync(wavPath))
     throw new Error("WAV file not found: " + wavPath);
 
-  // whisper-node in your repo was previously called with a path
-  const result = await whisper(wavPath, { modelName: "base" });
+  try {
+    console.log("🎤 [TRANSCRIBE] Calling whisper-node with base model...");
+    // whisper-node in your repo was previously called with a path
+    const result = await whisper(wavPath, { modelName: "base" });
 
-  if (!result) throw new Error("Transcription returned no result");
+    console.log("🎤 [TRANSCRIBE] Whisper result received:", result);
 
-  let transcriptText;
-  if (Array.isArray(result) && result.length > 0) {
-    transcriptText = result
-      .map((s) => s.speech || s.text || "")
-      .join(" ")
-      .trim();
-  } else if (typeof result === "string") {
-    transcriptText = result;
-  } else if (result.speech) {
-    transcriptText = result.speech;
-  } else if (result.text) {
-    transcriptText = result.text;
-  } else {
-    throw new Error(
-      "Unexpected transcription result format: " + JSON.stringify(result)
+    // Handle case where result is null or undefined
+    if (!result) {
+      console.warn(
+        "🎤 [TRANSCRIBE] ⚠️ Whisper returned null/undefined - audio might be silent or too short"
+      );
+      const transcriptText = "No audio content detected";
+      const summary =
+        "No content to summarize - audio appears to be silent or empty.";
+
+      if (saveToDb && recordingId) {
+        console.log(
+          "🎤 [TRANSCRIBE] Saving fallback transcript to database..."
+        );
+        await prisma.recording.update({
+          where: { id: recordingId },
+          data: { transcript: transcriptText, summary },
+        });
+      }
+
+      return { transcriptText, summary };
+    }
+
+    console.log("🎤 [TRANSCRIBE] Processing whisper result format...");
+    let transcriptText = "";
+
+    // Handle various result formats
+    if (Array.isArray(result) && result.length > 0) {
+      console.log(
+        "🎤 [TRANSCRIBE] Result is array with",
+        result.length,
+        "items"
+      );
+      transcriptText = result
+        .map((s) => s.speech || s.text || "")
+        .join(" ")
+        .trim();
+    } else if (typeof result === "string") {
+      console.log("🎤 [TRANSCRIBE] Result is string");
+      transcriptText = result.trim();
+    } else if (result.speech) {
+      console.log("🎤 [TRANSCRIBE] Result has speech property");
+      transcriptText = result.speech.trim();
+    } else if (result.text) {
+      console.log("🎤 [TRANSCRIBE] Result has text property");
+      transcriptText = result.text.trim();
+    } else {
+      console.warn(
+        "🎤 [TRANSCRIBE] ⚠️ Unexpected transcription result format:",
+        JSON.stringify(result)
+      );
+      transcriptText = "Unable to parse transcription result";
+    }
+
+    // Handle empty transcription
+    if (!transcriptText || transcriptText.length === 0) {
+      console.log("🎤 [TRANSCRIBE] ⚠️ Empty transcription detected");
+      transcriptText = "No speech detected in audio";
+    }
+
+    console.log("🎤 [TRANSCRIBE] ✅ Transcription completed successfully");
+    console.log(
+      "🎤 [TRANSCRIBE] Transcript length:",
+      transcriptText.length,
+      "characters"
     );
+    console.log(
+      "🎤 [TRANSCRIBE] Transcript preview:",
+      transcriptText.substring(0, 100) + "..."
+    );
+
+    console.log("🎤 [TRANSCRIBE] Starting summary generation...");
+    const summary = await generateSummary(transcriptText);
+
+    if (saveToDb && recordingId) {
+      console.log(
+        "🎤 [TRANSCRIBE] Saving transcript and summary to database..."
+      );
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { transcript: transcriptText, summary },
+      });
+      console.log("🎤 [TRANSCRIBE] ✅ Database updated successfully");
+    }
+
+    return { transcriptText, summary };
+  } catch (error) {
+    console.error("🎤 [TRANSCRIBE] ❌ Whisper transcription error:", error);
+
+    // Provide fallback response instead of throwing
+    const transcriptText = "Transcription failed - error processing audio";
+    const summary = "Unable to generate summary due to transcription error.";
+
+    if (saveToDb && recordingId) {
+      console.log("🎤 [TRANSCRIBE] Saving error fallback to database...");
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { transcript: transcriptText, summary },
+      });
+    }
+
+    return { transcriptText, summary };
   }
-
-  const summary = await generateSummary(transcriptText);
-
-  if (saveToDb && recordingId) {
-    await prisma.recording.update({
-      where: { id: recordingId },
-      data: { transcript: transcriptText },
-    });
-  }
-
-  return { transcriptText, summary };
 }
 
 // Convert any uploaded file on disk to a 16kHz mono WAV on disk (returns wav path)
@@ -143,13 +267,23 @@ recordingsRouter.get("/", async (req, res) => {
 // transcribes from the WAV file, uploads the final WAV to UploadThing via server SDK (stream/formdata),
 // and cleans up temporary files.
 recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
+  console.log("💾 [SAVE] Starting /save endpoint processing...");
   let uploadedFilePath;
   let convertedWavPath;
   let recordingRecord;
 
   try {
-    if (!req.file)
+    if (!req.file) {
+      console.log("💾 [SAVE] ❌ No recording file provided");
       return res.status(400).json({ error: "No recording file provided" });
+    }
+
+    console.log("💾 [SAVE] File received:", {
+      originalName: req.file.originalname,
+      mimetype: req.file.mimetype,
+      size: req.file.size,
+      path: req.file.path,
+    });
 
     // Parse metadata
     let metadata = {};
@@ -165,42 +299,55 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
 
     const meetingId = metadata.meetingId || null;
     const meetingPlatform = metadata.meetingPlatform || null;
+    console.log("💾 [SAVE] Metadata parsed:", { meetingId, meetingPlatform });
 
     // Auth
+    console.log("💾 [SAVE] Checking user authentication...");
     const userSession = await auth.api.getSession({
       headers: fromNodeHeaders(req.headers),
     });
-    if (!userSession)
+    if (!userSession) {
+      console.log("💾 [SAVE] ❌ User not authenticated");
       return res.status(403).json({ message: "User not logged in" });
+    }
+    console.log("💾 [SAVE] ✅ User authenticated:", userSession.user.id);
 
     uploadedFilePath = req.file.path; // disk path
 
     // Convert to WAV on disk (if already WAV, convertToWavOnDisk will still run but ffmpeg will quickly copy)
+    console.log("💾 [SAVE] Starting audio conversion to WAV...");
     convertedWavPath = await convertToWavOnDisk(uploadedFilePath);
+    console.log("💾 [SAVE] ✅ Audio conversion completed:", convertedWavPath);
 
     // Create DB recording entry before doing heavy work so we have an id to reference
+    console.log("💾 [SAVE] Creating recording entry in database...");
     recordingRecord = await createRecording(
       null,
       userSession.user,
       meetingId,
       meetingPlatform
     );
-    // createRecording should return the saved recording object including id. Adjust if your controller differs.
+    console.log(
+      "💾 [SAVE] ✅ Recording entry created with ID:",
+      recordingRecord.id
+    );
 
     // Transcribe from the WAV file (this runs the heavy model in a separate process if whisper-node spawns it)
+    console.log("💾 [SAVE] Starting transcription and summary generation...");
     const { transcriptText, summary } = await transcribeFromLocalPath(
       convertedWavPath,
       recordingRecord.id,
       true
     );
+    console.log("💾 [SAVE] ✅ Transcription and summary completed");
 
     // Upload the WAV to UploadThing - prefer streaming via FormData if server SDK supports it.
-    // Approach A: use UTApi.uploadFiles with FormData containing a ReadStream (Node 18+ supports FormData)
-    // Approach B (fallback): use UTFile + fs.readFileSync (may buffer file into memory)
-
+    console.log("💾 [SAVE] Starting file upload to UploadThing...");
     let uploadResp;
+    let operation;
     try {
       // Try FormData + utapi.uploadFiles(formData.getAll('files')) pattern
+      console.log("💾 [SAVE] Attempting streamed upload to UploadThing...");
       const FormDataImpl =
         globalThis.FormData || (await import("form-data")).default;
       const form = new FormDataImpl();
@@ -219,9 +366,14 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
       }
 
       uploadResp = await utapi.uploadFiles(filesForUpload);
+      console.log("💾 [SAVE] ✅ Streamed upload successful");
+      // operation = await googleSttTranscribe(
+      //   uploadResp[0].data.ufsUrl,
+      //   recordingRecord.id
+      // );
     } catch (err) {
       console.warn(
-        "Streamed upload to UTApi failed, falling back to buffered upload:",
+        "💾 [SAVE] ⚠️ Streamed upload failed, falling back to buffered upload:",
         err?.message || err
       );
 
@@ -233,6 +385,11 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
         customId: recordingRecord.id,
       });
       uploadResp = await utapi.uploadFiles([utFile]);
+      console.log("💾 [SAVE] ✅ Buffered upload successful");
+      // operation = await googleSttTranscribe(
+      //   uploadResp[0].data.ufsUrl,
+      //   recordingRecord.id
+      // );
     }
 
     // uploadResp should be an array with metadata including ufsUrl
@@ -244,45 +401,64 @@ recordingsRouter.post("/save", upload.single("recording"), async (req, res) => {
         ? uploadResp[0].data.ufsUrl
         : (uploadResp && uploadResp[0] && uploadResp[0].url) || null;
 
+    console.log("💾 [SAVE] File URL received:", fileUrl);
+
     // Update the recording entry with fileUrl if needed
     if (fileUrl) {
+      console.log("💾 [SAVE] Updating recording with file URL...");
       await prisma.recording.update({
         where: { id: recordingRecord.id },
         data: { recordingUrl: fileUrl },
       });
+      console.log("💾 [SAVE] ✅ Recording updated with file URL");
     }
 
     // Cleanup local temp files
+    console.log("💾 [SAVE] Starting cleanup of temporary files...");
     try {
       if (fs.existsSync(uploadedFilePath)) fs.unlinkSync(uploadedFilePath);
+      console.log("💾 [SAVE] ✅ Cleaned up uploaded file");
     } catch (e) {
-      console.error("cleanup uploadedFilePath", e);
+      console.error("💾 [SAVE] ❌ Cleanup uploadedFilePath error:", e);
     }
     try {
       if (fs.existsSync(convertedWavPath)) fs.unlinkSync(convertedWavPath);
+      console.log("💾 [SAVE] ✅ Cleaned up converted WAV file");
     } catch (e) {
-      console.error("cleanup convertedWavPath", e);
+      console.error("💾 [SAVE] ❌ Cleanup convertedWavPath error:", e);
     }
 
+    console.log("💾 [SAVE] ✅ All processing completed successfully");
     return res.status(201).json({
       message: "Recording uploaded, converted and transcribed",
       fileUrl,
       transcript: transcriptText,
       summary,
+      // googleOperationName: operation.name,
       recordingId: recordingRecord.id,
     });
   } catch (error) {
-    console.error("Save endpoint error:", error);
+    console.error("💾 [SAVE] ❌ Save endpoint error:", error);
+    console.error("💾 [SAVE] ❌ Error stack:", error.stack);
 
     // Attempt cleanup on error
+    console.log("💾 [SAVE] Starting error cleanup...");
     try {
-      if (uploadedFilePath && fs.existsSync(uploadedFilePath))
+      if (uploadedFilePath && fs.existsSync(uploadedFilePath)) {
         fs.unlinkSync(uploadedFilePath);
-    } catch (e) {}
+        console.log("💾 [SAVE] ✅ Cleaned up uploaded file after error");
+      }
+    } catch (e) {
+      console.error("💾 [SAVE] ❌ Error cleanup uploadedFilePath failed:", e);
+    }
     try {
-      if (convertedWavPath && fs.existsSync(convertedWavPath))
+      if (convertedWavPath && fs.existsSync(convertedWavPath)) {
         fs.unlinkSync(convertedWavPath);
-    } catch (e) {}
+        console.log("💾 [SAVE] ✅ Cleaned up converted WAV file after error");
+      }
+    } catch (e) {
+      console.error("💾 [SAVE] ❌ Error cleanup convertedWavPath failed:", e);
+    }
 
     return res.status(500).json({
       error: "Failed to upload recording",
@@ -341,10 +517,15 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
     convertedWavPath = await convertToWavOnDisk(downloadedFilePath);
 
     // Transcribe the WAV file and save to database
-    const { transcriptText, summary } = await transcribeFromLocalPath(
-      convertedWavPath,
-      recordingId,
-      true
+    // const { transcriptText, summary } = await transcribeFromLocalPath(
+    //   convertedWavPath,
+    //   recordingId,
+    //   true
+    // );
+
+    const operation = await googleSttTranscribe(
+      uploadResp[0].data.ufsUrl,
+      recording.recordingUrl
     );
 
     // Cleanup temporary files
@@ -361,8 +542,9 @@ recordingsRouter.get("/transcribe/:recordingId", async (req, res) => {
 
     return res.status(200).json({
       transcripts: transcriptText,
+      // googleOperationName: operation.name,
       summary,
-      message: "Recording transcribed successfully",
+      message: "Recording transcription via google initialized successfully",
     });
   } catch (err) {
     console.error("Transcription error:", err);
@@ -450,6 +632,57 @@ recordingsRouter.get("/:recordingId", async (req, res) => {
   } catch (error) {
     console.error("Fetch recording error:", error);
     return res.status(500).json({ error: "Failed to fetch recording" });
+  }
+});
+
+// api to get google STT operation status by operation name
+
+recordingsRouter.get("/google-stt-status/:operationName", async (req, res) => {
+  try {
+    const { operationName } = req.params;
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    if (!operationName)
+      return res.status(400).json({ message: "Operation name is required" });
+
+    const googleApiKey = process.env.GEMINI_API_KEY;
+    if (!googleApiKey)
+      return res.status(500).json({ message: "Google API key not configured" });
+
+    const googleResponse = await fetch(
+      `https://speech.googleapis.com/v1/operations/${operationName}`,
+      {
+        headers: {
+          Authorization: `Bearer ${googleApiKey}`,
+        },
+      }
+    );
+
+    if (!googleResponse.ok) {
+      const errorText = await googleResponse.text();
+      console.error(
+        "Google STT status fetch error:",
+        googleResponse.status,
+        errorText
+      );
+      return res.status(500).json({
+        message: "Failed to fetch operation status from Google",
+        details: errorText,
+      });
+    }
+
+    const statusData = await googleResponse.json();
+    return res.status(200).json({ status: statusData });
+  } catch (error) {
+    console.error("Google STT status endpoint error:", error);
+    return res.status(500).json({
+      error: "Failed to fetch Google STT operation status",
+      details: error?.message || String(error),
+    });
   }
 });
 

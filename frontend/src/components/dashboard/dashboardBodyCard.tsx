@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Card,
   CardAction,
@@ -10,6 +9,7 @@ import {
 } from "../ui/card";
 import { Button } from "../ui/button";
 import { recording } from "../../lib/types";
+import { FormattedText } from "../../utils/formatText";
 
 type Props = {
   recording: recording;
@@ -48,7 +48,7 @@ const DashboardBodyCard = ({ recording }: Props) => {
         </CardTitle>
         <CardDescription className="mt-4">
           {recording.summary ? (
-            <div>{recording.summary}</div>
+            <FormattedText text={recording.summary} />
           ) : (
             <div>
               Lorem ipsum dolor sit amet consectetur adipiscing elit. Sit amet

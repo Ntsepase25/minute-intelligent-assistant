@@ -76,15 +76,16 @@ model Verification {
 }
 
 model Recording {
-  id              String   @id @default(uuid())
-  meetingId       String?
-  userId          String
-  meetingPlatform String?
-  recordingUrl    String?
-  transcript      String?
-  summary         String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  meetingId           String?
+  userId              String
+  meetingPlatform     String?
+  recordingUrl        String?
+  transcript          String?
+  summary             String?
+  googleOperationName String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

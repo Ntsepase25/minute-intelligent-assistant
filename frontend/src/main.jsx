@@ -4,8 +4,8 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import "./index.css";
 import App from "./App.jsx";
 import SignIn from "./pages/sign-in.jsx";
-import DashBoard from "./pages/dashboard.jsx";
 import RecordingPage from "./pages/recordingPage.jsx";
+import DashBoard from "./pages/dashboard.tsx";
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
