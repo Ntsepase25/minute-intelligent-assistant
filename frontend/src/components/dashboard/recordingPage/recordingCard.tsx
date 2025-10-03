@@ -8,8 +8,14 @@ import {
   CardTitle,
 } from "../../ui/card";
 import { Play } from "lucide-react";
+import { recording } from "../../../lib/types";
 
-const RecordingCard = () => {
+type Props = {
+  recording: recording
+  loading: boolean
+};
+
+const RecordingCard = ({recording, loading}: Props) => {
   return (
     <div className="flex items-center pl-2 mt-2">
       <Card className="flex flex-row justify-between gap-0 lg:w-[28%] md:w-[55%] w-[90%] py-0 rounded-sm">
