@@ -23,6 +23,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useSelectedRecordingStore } from "@/stores/recordingsStore";
 
 import { toast } from "sonner";
+import TopComponent from "@/components/dashboard/recordingPage/topComponent";
 
 const DashBoard = () => {
   const { data: session, isPending } = authClient.useSession();
@@ -228,11 +229,14 @@ const DashBoard = () => {
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              <SectionCards />
+              {/* <SectionCards />
               <div className="px-4 lg:px-6">
                 <ChartAreaInteractive />
-              </div>
+              </div> */}
               {/* <DataTable data={data} /> */}
+              <div className="w-[90%] mx-auto">
+                <TopComponent loading={loading} />
+              </div>
             </div>
           </div>
         </div>
