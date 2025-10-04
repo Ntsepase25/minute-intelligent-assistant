@@ -8,4 +8,14 @@ export type recording = {
   summary: string | null;
   recordingUrl: string;
   id: string;
+  selected: boolean
+  title: string;
+  url: string;
+};
+
+export type sidebarItem = {
+  title: string;
+  url: string;
+  selected: boolean;
+  id: string;
 };
