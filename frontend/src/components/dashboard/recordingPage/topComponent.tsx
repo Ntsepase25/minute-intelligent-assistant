@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { recording } from "@/lib/types";
 import { useSelectedRecordingStore } from "@/stores/recordingsStore";
 import AudioPlayer from "./audioPlayer";
+import { AudioPlayerLoadingSkeleton } from "./audioPlayerSkeleton";
 
 type Props = {
   loading: boolean;
@@ -15,7 +16,11 @@ const TopComponent = ({ loading }: Props) => {
   return (
     <div className="flex lg:flex-row flex-col gap-2 justify-between mx-2">
       <div>
-        <AudioPlayer audioUrl={recording?.recordingUrl} />
+        {loading ? (
+          <AudioPlayerLoadingSkeleton />
+        ) : (
+          <AudioPlayer audioUrl={recording?.recordingUrl} />
+        )}
       </div>
       <div className="flex gap-2 items-center">
         <Button variant="outline">
