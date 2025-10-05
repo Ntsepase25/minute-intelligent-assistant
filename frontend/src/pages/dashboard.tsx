@@ -33,6 +33,7 @@ import { useSelectedRecordingStore } from "@/stores/recordingsStore";
 import { toast } from "sonner";
 import TopComponent from "@/components/dashboard/recordingPage/topComponent";
 import BentoGrid from "@/components/mvpblocks/bento-grid-2";
+import { BentoGridLoadingSkeleton } from "@/components/dashboard/recordingPage/bentoGridSkeleton";
 
 const DashBoard = () => {
   const { data: session, isPending } = authClient.useSession();
@@ -244,7 +245,7 @@ const DashBoard = () => {
                   <Pin color="#000000" className="h-4 w-4" />
                   Notes & Key Points
                 </div> */}
-                <BentoGrid />
+                {loading ? <BentoGridLoadingSkeleton /> : <BentoGrid />}
               </div>
             </div>
           </div>
