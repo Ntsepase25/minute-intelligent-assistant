@@ -7,9 +7,17 @@ import type { recording, sidebarItem } from "../lib/types";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import {
   AlertCircleIcon,
+  Building,
+  Camera,
   CloudUpload,
+  Compass,
   Funnel,
+  Heart,
+  Home,
+  HomeIcon,
   Loader2,
+  MapPin,
+  Pin,
   Wifi,
   WifiOff,
 } from "lucide-react";
@@ -24,6 +32,7 @@ import { useSelectedRecordingStore } from "@/stores/recordingsStore";
 
 import { toast } from "sonner";
 import TopComponent from "@/components/dashboard/recordingPage/topComponent";
+import BentoGrid from "@/components/mvpblocks/bento-grid-2";
 
 const DashBoard = () => {
   const { data: session, isPending } = authClient.useSession();
@@ -229,13 +238,13 @@ const DashBoard = () => {
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-              {/* <SectionCards />
-              <div className="px-4 lg:px-6">
-                <ChartAreaInteractive />
-              </div> */}
-              {/* <DataTable data={data} /> */}
               <div className="w-[90%] mx-auto">
                 <TopComponent loading={loading} />
+                {/* <div className="w-full text-xl font-bold flex items-center gap-2">
+                  <Pin color="#000000" className="h-4 w-4" />
+                  Notes & Key Points
+                </div> */}
+                <BentoGrid />
               </div>
             </div>
           </div>
