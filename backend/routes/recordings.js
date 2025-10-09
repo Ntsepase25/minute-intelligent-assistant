@@ -12,7 +12,7 @@ import { prisma } from "../lib/prisma.ts";
 import { createRecording } from "../contollers/recordings.controller.ts";
 import { convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
 // import { transcribeFromLocalPath, convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
-import { generateSummary } from "../helpers/transcriptionHelpers.ts";
+import { regenerateTranscript, regenerateSummary } from "../helpers/transcriptionHelpers.ts";
 
 import { fromNodeHeaders } from "better-auth/node";
 
@@ -411,26 +411,26 @@ recordingsRouter.post("/save/assembly-ai", upload.single("recording"), async (re
       data: { recordingUrl: fileUrl },
     });
 
-    // Start AssemblyAI transcription (async operation)
+    // Start AssemblyAI transcription (now waits for completion)
     console.log("🔵 [ASSEMBLY-AI] Starting AssemblyAI transcription...");
-    const transcript = await transcribeFromAssemblyAI(
+    const result = await transcribeFromAssemblyAI(
       fileUrl,
       recordingRecord.id,
       true
     );
-    console.log("🔵 [ASSEMBLY-AI] ✅ AssemblyAI transcription started:", transcript.id);
+    console.log("🔵 [ASSEMBLY-AI] ✅ AssemblyAI transcription completed");
 
     // Cleanup local temp files
     cleanupFiles(uploadedFilePath, convertedWavPath);
 
     console.log("🔵 [ASSEMBLY-AI] ✅ All processing completed successfully");
     return res.status(201).json({
-      message: "Recording uploaded and AssemblyAI transcription initiated",
+      message: "Recording uploaded and transcribed with AssemblyAI",
       fileUrl,
-      assemblyTranscriptId: transcript.id,
+      transcript: result.transcriptText,
+      summary: result.summary,
       recordingId: recordingRecord.id,
-      transcriptionService: "assembly-ai",
-      note: "Transcription is processing. Use AssemblyAI API to check progress."
+      transcriptionService: "assembly-ai"
     });
   } catch (error) {
     console.error("🔵 [ASSEMBLY-AI] ❌ Save endpoint error:", error);
@@ -724,6 +724,76 @@ recordingsRouter.get("/assembly-ai-status/:transcriptId", async (req, res) => {
     console.error("AssemblyAI status endpoint error:", error);
     return res.status(500).json({
       error: "Failed to fetch AssemblyAI transcript status",
+      details: error?.message || String(error),
+    });
+  }
+});
+
+// Regenerate transcript endpoint
+recordingsRouter.post("/regenerate-transcript/:recordingId", async (req, res) => {
+  try {
+    const { recordingId } = req.params;
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const recording = await prisma.recording.findUnique({
+      where: { id: recordingId },
+    });
+    if (!recording)
+      return res.status(404).json({ message: "Recording not found" });
+    if (recording.userId !== userSession.user.id)
+      return res.status(403).json({ message: "Access denied" });
+
+    console.log(`🔄 [API] Starting transcript regeneration for recording: ${recordingId}`);
+    
+    const result = await regenerateTranscript(recordingId);
+
+    return res.status(200).json({
+      message: "Transcript regenerated successfully",
+      transcript: result.transcriptText,
+    });
+  } catch (error) {
+    console.error("Regenerate transcript error:", error);
+    return res.status(500).json({
+      error: "Failed to regenerate transcript",
+      details: error?.message || String(error),
+    });
+  }
+});
+
+// Regenerate summary endpoint
+recordingsRouter.post("/regenerate-summary/:recordingId", async (req, res) => {
+  try {
+    const { recordingId } = req.params;
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const recording = await prisma.recording.findUnique({
+      where: { id: recordingId },
+    });
+    if (!recording)
+      return res.status(404).json({ message: "Recording not found" });
+    if (recording.userId !== userSession.user.id)
+      return res.status(403).json({ message: "Access denied" });
+
+    console.log(`🔄 [API] Starting summary regeneration for recording: ${recordingId}`);
+    
+    const summary = await regenerateSummary(recordingId);
+
+    return res.status(200).json({
+      message: "Summary regenerated successfully",
+      summary,
+    });
+  } catch (error) {
+    console.error("Regenerate summary error:", error);
+    return res.status(500).json({
+      error: "Failed to regenerate summary",
       details: error?.message || String(error),
     });
   }

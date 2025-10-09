@@ -41,7 +41,7 @@ export function NavMain({
   const setSelectedRecording = useSelectedRecordingStore(
     (state) => state.setSelectedRecording
   );
-  // console.log("NavMain items: ", items);
+  console.log("NavMain items: ", items);
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Platform</SidebarGroupLabel>
@@ -69,10 +69,10 @@ export function NavMain({
                     {item.items && item.items.length > 0 ? (
                       item.items?.map((subItem) => (
                         <SidebarMenuSubItem
-                          key={subItem.title}
+                          key={subItem.id}
                           className={
                             subItem.id === selectedRecording.id
-                              ? "bg-accent"
+                              ? "bg-accent rounded"
                               : ""
                           }
                         >
@@ -82,7 +82,7 @@ export function NavMain({
                             onClick={() => setSelectedRecording(subItem)}
                           >
                             {/* <a href={subItem.url}> */}
-                            <span>{subItem.title}</span>
+                            <span>{subItem.title || subItem.meetingId}</span>
                             {/* </a> */}
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

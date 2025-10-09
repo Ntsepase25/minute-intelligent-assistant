@@ -341,21 +341,14 @@ export async function transcribeFromAssemblyAI(
   if (!assemblyApiKey) throw new Error("AssemblyAI API key not configured");
 
   console.log(
-    `Transcribing ${fileUrl} with AssemblyAI for recording ID: ${recordingId}`
+    `🔵 [ASSEMBLY-AI] Transcribing ${fileUrl} for recording ID: ${recordingId}`
   );
 
-  const apiKey = process.env.ASSEMBLY_AI_API_KEY;
-  if (!apiKey) throw new Error("AssemblyAI API key not configured");
-
   const client = new AssemblyAI({
-    apiKey,
+    apiKey: assemblyApiKey,
   });
 
-  const params = {
-    audio: fileUrl,
-    speech_model: "universal",
-  };
-
+  // Start transcription
   const transcript = await client.transcripts.transcribe({
     audio_url: fileUrl,
     speech_model: "universal",
@@ -363,17 +356,126 @@ export async function transcribeFromAssemblyAI(
     punctuate: true,
   });
 
-  console.log("AssemblyAI transcription initiated:", transcript);
+  console.log("🔵 [ASSEMBLY-AI] Transcription completed:", transcript.status);
+
+  if (transcript.status === "error") {
+    throw new Error(`AssemblyAI transcription failed: ${transcript.error}`);
+  }
+
+  const transcriptText = transcript.text || "No transcript available";
+  
+  console.log("🔵 [ASSEMBLY-AI] ✅ Transcript received, generating summary...");
+  const summary = await generateSummary(transcriptText);
 
   if (saveToDb) {
+    console.log("🔵 [ASSEMBLY-AI] Saving transcript and summary to database...");
     await prisma.recording.update({
       where: { id: recordingId },
-      data: { assemblyOperationId: transcript.id },
+      data: { 
+        transcript: transcriptText,
+        summary: typeof summary === 'string' ? summary : summary.minutes,
+        title: typeof summary === 'object' ? summary.title : null,
+        minutes: typeof summary === 'object' ? summary.minutes : null,
+        actionItems: typeof summary === 'object' ? summary.actionItems : null,
+        nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
+        summaryData: typeof summary === 'object' ? summary : null,
+        assemblyOperationId: transcript.id,
+      },
     });
+    console.log("🔵 [ASSEMBLY-AI] ✅ Database updated successfully");
   }
 
   console.log(
-    `AssemblyAI transcription started with ID: ${transcript.id} for recording ID: ${recordingId}`
+    `🔵 [ASSEMBLY-AI] ✅ Complete processing finished for recording ID: ${recordingId}`
   );
-  return transcript;
+  
+  return { transcriptText, summary };
+}
+
+// Regenerate transcript only for a recording
+export async function regenerateTranscript(recordingId: string) {
+  console.log(`🔄 [REGENERATE] Starting transcript regeneration for recording: ${recordingId}`);
+  
+  const recording = await prisma.recording.findUnique({
+    where: { id: recordingId }
+  });
+
+  if (!recording) {
+    throw new Error("Recording not found");
+  }
+
+  if (!recording.recordingUrl) {
+    throw new Error("No recording URL found for this recording");
+  }
+
+  console.log(`🔄 [REGENERATE] Transcribing audio without auto-summary...`);
+  
+  const assemblyApiKey = process.env.ASSEMBLY_AI_API_KEY;
+  if (!assemblyApiKey) throw new Error("AssemblyAI API key not configured");
+
+  const client = new AssemblyAI({
+    apiKey: assemblyApiKey,
+  });
+
+  // Start transcription
+  const transcript = await client.transcripts.transcribe({
+    audio_url: recording.recordingUrl,
+    speech_model: "universal",
+    format_text: true,
+    punctuate: true,
+  });
+
+  if (transcript.status === "error") {
+    throw new Error(`AssemblyAI transcription failed: ${transcript.error}`);
+  }
+
+  const transcriptText = transcript.text || "No transcript available";
+  
+  // Save only the transcript first (without summary)
+  await prisma.recording.update({
+    where: { id: recordingId },
+    data: { 
+      transcript: transcriptText,
+      assemblyOperationId: transcript.id,
+    },
+  });
+  
+  console.log(`🔄 [REGENERATE] ✅ Transcript regenerated for recording: ${recordingId}`);
+  return { transcriptText };
+}
+
+// Regenerate summary only for a recording (requires existing transcript)
+export async function regenerateSummary(recordingId: string) {
+  console.log(`🔄 [REGENERATE] Starting summary regeneration for recording: ${recordingId}`);
+  
+  const recording = await prisma.recording.findUnique({
+    where: { id: recordingId }
+  });
+
+  if (!recording) {
+    throw new Error("Recording not found");
+  }
+
+  if (!recording.transcript) {
+    throw new Error("No transcript found for this recording. Please regenerate transcript first.");
+  }
+
+  console.log(`🔄 [REGENERATE] Generating summary from existing transcript...`);
+  const summary = await generateSummary(recording.transcript);
+
+  // Save updated summary to database
+  await prisma.recording.update({
+    where: { id: recordingId },
+    data: { 
+      summary: typeof summary === 'string' ? summary : summary.minutes,
+      title: typeof summary === 'object' ? summary.title : null,
+      minutes: typeof summary === 'object' ? summary.minutes : null,
+      actionItems: typeof summary === 'object' ? summary.actionItems : null,
+      nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
+      summaryData: typeof summary === 'object' ? summary : null,
+    },
+  });
+
+  console.log(`🔄 [REGENERATE] ✅ Summary regenerated for recording: ${recordingId}`);
+  return summary;
 }
