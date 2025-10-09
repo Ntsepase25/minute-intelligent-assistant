@@ -138,7 +138,7 @@ const chartConfig = {
     label: "Mobile",
     color: "var(--primary)",
   },
-} satisfies ChartConfig
+} as ChartConfig
 
 export function ChartAreaInteractive() {
   const isMobile = useIsMobile()
