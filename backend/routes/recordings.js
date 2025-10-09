@@ -10,7 +10,8 @@ import { UTApi, UTFile } from "uploadthing/server"; // server SDK
 import { auth } from "../lib/auth.ts";
 import { prisma } from "../lib/prisma.ts";
 import { createRecording } from "../contollers/recordings.controller.ts";
-import { transcribeFromLocalPath, convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
+import { convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
+// import { transcribeFromLocalPath, convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
 import { generateSummary } from "../helpers/transcriptionHelpers.ts";
 
 import { fromNodeHeaders } from "better-auth/node";
@@ -216,80 +217,80 @@ function cleanupFiles(uploadedFilePath, convertedWavPath) {
 }
 
 // Endpoint for Whisper-node transcription
-recordingsRouter.post("/save/whisper", upload.single("recording"), async (req, res) => {
-  console.log("🎵 [WHISPER] Starting /save/whisper endpoint processing...");
-  let uploadedFilePath;
-  let convertedWavPath;
-  let recordingRecord;
+// recordingsRouter.post("/save/whisper", upload.single("recording"), async (req, res) => {
+//   console.log("🎵 [WHISPER] Starting /save/whisper endpoint processing...");
+//   let uploadedFilePath;
+//   let convertedWavPath;
+//   let recordingRecord;
 
-  try {
-    // Process uploaded file and auth
-    const processResult = await processUploadedFile(req, res);
-    if (processResult.error) {
-      return res.status(processResult.status).json({ error: processResult.error });
-    }
+//   try {
+//     // Process uploaded file and auth
+//     const processResult = await processUploadedFile(req, res);
+//     if (processResult.error) {
+//       return res.status(processResult.status).json({ error: processResult.error });
+//     }
 
-    const { userSession, meetingId, meetingPlatform, uploadedFilePath: filePath } = processResult;
-    uploadedFilePath = filePath;
+//     const { userSession, meetingId, meetingPlatform, uploadedFilePath: filePath } = processResult;
+//     uploadedFilePath = filePath;
 
-    // Convert to WAV on disk
-    console.log("🎵 [WHISPER] Starting audio conversion to WAV...");
-    convertedWavPath = await convertToWavOnDisk(uploadedFilePath);
-    console.log("🎵 [WHISPER] ✅ Audio conversion completed:", convertedWavPath);
+//     // Convert to WAV on disk
+//     console.log("🎵 [WHISPER] Starting audio conversion to WAV...");
+//     convertedWavPath = await convertToWavOnDisk(uploadedFilePath);
+//     console.log("🎵 [WHISPER] ✅ Audio conversion completed:", convertedWavPath);
 
-    // Create DB recording entry
-    console.log("🎵 [WHISPER] Creating recording entry in database...");
-    recordingRecord = await createRecording(
-      null,
-      userSession.user,
-      meetingId,
-      meetingPlatform
-    );
-    console.log("🎵 [WHISPER] ✅ Recording entry created with ID:", recordingRecord.id);
+//     // Create DB recording entry
+//     console.log("🎵 [WHISPER] Creating recording entry in database...");
+//     recordingRecord = await createRecording(
+//       null,
+//       userSession.user,
+//       meetingId,
+//       meetingPlatform
+//     );
+//     console.log("🎵 [WHISPER] ✅ Recording entry created with ID:", recordingRecord.id);
 
-    // Transcribe using Whisper-node (local processing)
-    console.log("🎵 [WHISPER] Starting transcription and summary generation...");
-    const { transcriptText, summary } = await transcribeFromLocalPath(
-      convertedWavPath,
-      recordingRecord.id,
-      true
-    );
-    console.log("🎵 [WHISPER] ✅ Transcription and summary completed");
+//     // Transcribe using Whisper-node (local processing)
+//     console.log("🎵 [WHISPER] Starting transcription and summary generation...");
+//     const { transcriptText, summary } = await transcribeFromLocalPath(
+//       convertedWavPath,
+//       recordingRecord.id,
+//       true
+//     );
+//     console.log("🎵 [WHISPER] ✅ Transcription and summary completed");
 
-    // Upload the WAV to UploadThing
-    const fileUrl = await uploadToUploadThing(convertedWavPath);
+//     // Upload the WAV to UploadThing
+//     const fileUrl = await uploadToUploadThing(convertedWavPath);
 
-    // Update the recording entry with fileUrl
-    if (fileUrl) {
-      console.log("🎵 [WHISPER] Updating recording with file URL...");
-      await prisma.recording.update({
-        where: { id: recordingRecord.id },
-        data: { recordingUrl: fileUrl },
-      });
-      console.log("🎵 [WHISPER] ✅ Recording updated with file URL");
-    }
+//     // Update the recording entry with fileUrl
+//     if (fileUrl) {
+//       console.log("🎵 [WHISPER] Updating recording with file URL...");
+//       await prisma.recording.update({
+//         where: { id: recordingRecord.id },
+//         data: { recordingUrl: fileUrl },
+//       });
+//       console.log("🎵 [WHISPER] ✅ Recording updated with file URL");
+//     }
 
-    // Cleanup local temp files
-    cleanupFiles(uploadedFilePath, convertedWavPath);
+//     // Cleanup local temp files
+//     cleanupFiles(uploadedFilePath, convertedWavPath);
 
-    console.log("🎵 [WHISPER] ✅ All processing completed successfully");
-    return res.status(201).json({
-      message: "Recording uploaded, converted and transcribed with Whisper",
-      fileUrl,
-      transcript: transcriptText,
-      summary,
-      recordingId: recordingRecord.id,
-      transcriptionService: "whisper"
-    });
-  } catch (error) {
-    console.error("🎵 [WHISPER] ❌ Save endpoint error:", error);
-    cleanupFiles(uploadedFilePath, convertedWavPath);
-    return res.status(500).json({
-      error: "Failed to upload recording with Whisper",
-      details: error?.message || String(error),
-    });
-  }
-});
+//     console.log("🎵 [WHISPER] ✅ All processing completed successfully");
+//     return res.status(201).json({
+//       message: "Recording uploaded, converted and transcribed with Whisper",
+//       fileUrl,
+//       transcript: transcriptText,
+//       summary,
+//       recordingId: recordingRecord.id,
+//       transcriptionService: "whisper"
+//     });
+//   } catch (error) {
+//     console.error("🎵 [WHISPER] ❌ Save endpoint error:", error);
+//     cleanupFiles(uploadedFilePath, convertedWavPath);
+//     return res.status(500).json({
+//       error: "Failed to upload recording with Whisper",
+//       details: error?.message || String(error),
+//     });
+//   }
+// });
 
 // Endpoint for Google STT transcription
 recordingsRouter.post("/save/google-stt", upload.single("recording"), async (req, res) => {

@@ -1,7 +1,7 @@
 import speech from "@google-cloud/speech";
 import { prisma } from "../lib/prisma.ts";
 import { GoogleGenAI } from "@google/genai";
-import { whisper } from "whisper-node";
+// import { whisper } from "whisper-node";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegStatic from "ffmpeg-static";
 import os from "os";
@@ -180,136 +180,136 @@ ${transcript}`;
 }
 
 // Transcribe a local WAV file path using whisper-node and optionally save to DB
-export async function transcribeFromLocalPath(
-  wavPath,
-  recordingId,
-  saveToDb = true
-) {
-  console.log("🎤 [TRANSCRIBE] Starting transcription process...");
-  console.log("🎤 [TRANSCRIBE] WAV file path:", wavPath);
-  console.log("🎤 [TRANSCRIBE] Recording ID:", recordingId);
+// export async function transcribeFromLocalPath(
+//   wavPath,
+//   recordingId,
+//   saveToDb = true
+// ) {
+//   console.log("🎤 [TRANSCRIBE] Starting transcription process...");
+//   console.log("🎤 [TRANSCRIBE] WAV file path:", wavPath);
+//   console.log("🎤 [TRANSCRIBE] Recording ID:", recordingId);
 
-  if (!fs.existsSync(wavPath))
-    throw new Error("WAV file not found: " + wavPath);
+//   if (!fs.existsSync(wavPath))
+//     throw new Error("WAV file not found: " + wavPath);
 
-  try {
-    console.log("🎤 [TRANSCRIBE] Calling whisper-node with base model...");
-    // whisper-node in your repo was previously called with a path
-    const result = await whisper(wavPath, { modelName: "base" });
+//   try {
+//     console.log("🎤 [TRANSCRIBE] Calling whisper-node with base model...");
+//     // whisper-node in your repo was previously called with a path
+//     const result = await whisper(wavPath, { modelName: "base" });
 
-    console.log("🎤 [TRANSCRIBE] Whisper result received:", result);
+//     console.log("🎤 [TRANSCRIBE] Whisper result received:", result);
 
-    // Handle case where result is null or undefined
-    if (!result) {
-      console.warn(
-        "🎤 [TRANSCRIBE] ⚠️ Whisper returned null/undefined - audio might be silent or too short"
-      );
-      const transcriptText = "No audio content detected";
-      const summary =
-        "No content to summarize - audio appears to be silent or empty.";
+//     // Handle case where result is null or undefined
+//     if (!result) {
+//       console.warn(
+//         "🎤 [TRANSCRIBE] ⚠️ Whisper returned null/undefined - audio might be silent or too short"
+//       );
+//       const transcriptText = "No audio content detected";
+//       const summary =
+//         "No content to summarize - audio appears to be silent or empty.";
 
-      if (saveToDb && recordingId) {
-        console.log(
-          "🎤 [TRANSCRIBE] Saving fallback transcript to database..."
-        );
-        await prisma.recording.update({
-          where: { id: recordingId },
-          data: { transcript: transcriptText, summary },
-        });
-      }
+//       if (saveToDb && recordingId) {
+//         console.log(
+//           "🎤 [TRANSCRIBE] Saving fallback transcript to database..."
+//         );
+//         await prisma.recording.update({
+//           where: { id: recordingId },
+//           data: { transcript: transcriptText, summary },
+//         });
+//       }
 
-      return { transcriptText, summary };
-    }
+//       return { transcriptText, summary };
+//     }
 
-    console.log("🎤 [TRANSCRIBE] Processing whisper result format...");
-    let transcriptText = "";
+//     console.log("🎤 [TRANSCRIBE] Processing whisper result format...");
+//     let transcriptText = "";
 
-    // Handle various result formats
-    if (Array.isArray(result) && result.length > 0) {
-      console.log(
-        "🎤 [TRANSCRIBE] Result is array with",
-        result.length,
-        "items"
-      );
-      transcriptText = result
-        .map((s) => s.speech || s.text || "")
-        .join(" ")
-        .trim();
-    } else if (typeof result === "string") {
-      console.log("🎤 [TRANSCRIBE] Result is string");
-      transcriptText = result.trim();
-    } else if (result.speech) {
-      console.log("🎤 [TRANSCRIBE] Result has speech property");
-      transcriptText = result.speech.trim();
-    } else if (result.text) {
-      console.log("🎤 [TRANSCRIBE] Result has text property");
-      transcriptText = result.text.trim();
-    } else {
-      console.warn(
-        "🎤 [TRANSCRIBE] ⚠️ Unexpected transcription result format:",
-        JSON.stringify(result)
-      );
-      transcriptText = "Unable to parse transcription result";
-    }
+//     // Handle various result formats
+//     if (Array.isArray(result) && result.length > 0) {
+//       console.log(
+//         "🎤 [TRANSCRIBE] Result is array with",
+//         result.length,
+//         "items"
+//       );
+//       transcriptText = result
+//         .map((s) => s.speech || s.text || "")
+//         .join(" ")
+//         .trim();
+//     } else if (typeof result === "string") {
+//       console.log("🎤 [TRANSCRIBE] Result is string");
+//       transcriptText = result.trim();
+//     } else if (result.speech) {
+//       console.log("🎤 [TRANSCRIBE] Result has speech property");
+//       transcriptText = result.speech.trim();
+//     } else if (result.text) {
+//       console.log("🎤 [TRANSCRIBE] Result has text property");
+//       transcriptText = result.text.trim();
+//     } else {
+//       console.warn(
+//         "🎤 [TRANSCRIBE] ⚠️ Unexpected transcription result format:",
+//         JSON.stringify(result)
+//       );
+//       transcriptText = "Unable to parse transcription result";
+//     }
 
-    // Handle empty transcription
-    if (!transcriptText || transcriptText.length === 0) {
-      console.log("🎤 [TRANSCRIBE] ⚠️ Empty transcription detected");
-      transcriptText = "No speech detected in audio";
-    }
+//     // Handle empty transcription
+//     if (!transcriptText || transcriptText.length === 0) {
+//       console.log("🎤 [TRANSCRIBE] ⚠️ Empty transcription detected");
+//       transcriptText = "No speech detected in audio";
+//     }
 
-    console.log("🎤 [TRANSCRIBE] ✅ Transcription completed successfully");
-    console.log(
-      "🎤 [TRANSCRIBE] Transcript length:",
-      transcriptText.length,
-      "characters"
-    );
-    console.log(
-      "🎤 [TRANSCRIBE] Transcript preview:",
-      transcriptText.substring(0, 100) + "..."
-    );
+//     console.log("🎤 [TRANSCRIBE] ✅ Transcription completed successfully");
+//     console.log(
+//       "🎤 [TRANSCRIBE] Transcript length:",
+//       transcriptText.length,
+//       "characters"
+//     );
+//     console.log(
+//       "🎤 [TRANSCRIBE] Transcript preview:",
+//       transcriptText.substring(0, 100) + "..."
+//     );
 
-    console.log("🎤 [TRANSCRIBE] Starting summary generation...");
-    const summary = await generateSummary(transcriptText);
+//     console.log("🎤 [TRANSCRIBE] Starting summary generation...");
+//     const summary = await generateSummary(transcriptText);
 
-    if (saveToDb && recordingId) {
-      console.log(
-        "🎤 [TRANSCRIBE] Saving transcript and summary to database..."
-      );
-      await prisma.recording.update({
-        where: { id: recordingId },
-        data: { 
-          transcript: transcriptText, 
-          summary: typeof summary === 'string' ? summary : summary.minutes,
-          title: typeof summary === 'object' ? summary.title : null,
-          minutes: typeof summary === 'object' ? summary.minutes : null,
-          actionItems: typeof summary === 'object' ? summary.actionItems : null,
-          nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
-          summaryData: typeof summary === 'object' ? summary : null,
-        },
-      });
-      console.log("🎤 [TRANSCRIBE] ✅ Database updated successfully");
-    }
+//     if (saveToDb && recordingId) {
+//       console.log(
+//         "🎤 [TRANSCRIBE] Saving transcript and summary to database..."
+//       );
+//       await prisma.recording.update({
+//         where: { id: recordingId },
+//         data: { 
+//           transcript: transcriptText, 
+//           summary: typeof summary === 'string' ? summary : summary.minutes,
+//           title: typeof summary === 'object' ? summary.title : null,
+//           minutes: typeof summary === 'object' ? summary.minutes : null,
+//           actionItems: typeof summary === 'object' ? summary.actionItems : null,
+//           nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
+//           summaryData: typeof summary === 'object' ? summary : null,
+//         },
+//       });
+//       console.log("🎤 [TRANSCRIBE] ✅ Database updated successfully");
+//     }
 
-    return { transcriptText, summary };
-  } catch (error) {
-    console.error("🎤 [TRANSCRIBE] ❌ Whisper transcription error:", error);
+//     return { transcriptText, summary };
+//   } catch (error) {
+//     console.error("🎤 [TRANSCRIBE] ❌ Whisper transcription error:", error);
 
-    // Provide fallback response instead of throwing
-    const transcriptText = "Transcription failed - error processing audio";
-    const summary = "Unable to generate summary due to transcription error.";
+//     // Provide fallback response instead of throwing
+//     const transcriptText = "Transcription failed - error processing audio";
+//     const summary = "Unable to generate summary due to transcription error.";
 
-    if (saveToDb && recordingId) {
-      console.log("🎤 [TRANSCRIBE] Saving error fallback to database...");
-      await prisma.recording.update({
-        where: { id: recordingId },
-        data: { transcript: transcriptText, summary },
-      });
-    }
+//     if (saveToDb && recordingId) {
+//       console.log("🎤 [TRANSCRIBE] Saving error fallback to database...");
+//       await prisma.recording.update({
+//         where: { id: recordingId },
+//         data: { transcript: transcriptText, summary },
+//       });
+//     }
 
-    return { transcriptText, summary };
-  }
-}
+//     return { transcriptText, summary };
+//   }
+// }
 
 // Convert any uploaded file on disk to a 16kHz mono WAV on disk (returns wav path)
 export async function convertToWavOnDisk(inputPath) {

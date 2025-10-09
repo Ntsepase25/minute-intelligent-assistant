@@ -16,7 +16,7 @@ export default function BentoGrid() {
 
   if (!selectedRecording) {
     return (
-      <section className="relative overflow-hidden pb-12 pt-2">
+      <section className="w-full flex flex-col items-center justify-center py-20">
         <div className="w-full text-xl font-bold flex items-center gap-2">
           <Pin className="h-4 w-4 text-primary" />
           Notes & Key Points

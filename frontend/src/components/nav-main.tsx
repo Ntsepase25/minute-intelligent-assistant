@@ -66,24 +66,32 @@ export function NavMain({
                 </CollapsibleTrigger>
                 <CollapsibleContent>
                   <SidebarMenuSub>
-                    {item.items?.map((subItem) => (
-                      <SidebarMenuSubItem
-                        key={subItem.title}
-                        className={
-                          subItem.id === selectedRecording.id ? "bg-accent" : ""
-                        }
-                      >
-                        <SidebarMenuSubButton
-                          asChild
-                          className="cursor-pointer"
-                          onClick={() => setSelectedRecording(subItem)}
+                    {item.items && item.items.length > 0 ? (
+                      item.items?.map((subItem) => (
+                        <SidebarMenuSubItem
+                          key={subItem.title}
+                          className={
+                            subItem.id === selectedRecording.id
+                              ? "bg-accent"
+                              : ""
+                          }
                         >
-                          {/* <a href={subItem.url}> */}
-                          <span>{subItem.title}</span>
-                          {/* </a> */}
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
+                          <SidebarMenuSubButton
+                            asChild
+                            className="cursor-pointer"
+                            onClick={() => setSelectedRecording(subItem)}
+                          >
+                            {/* <a href={subItem.url}> */}
+                            <span>{subItem.title}</span>
+                            {/* </a> */}
+                          </SidebarMenuSubButton>
+                        </SidebarMenuSubItem>
+                      ))
+                    ) : (
+                      <div className="p-2 text-sm text-muted-foreground">
+                        No recordings available
+                      </div>
+                    )}
                   </SidebarMenuSub>
                 </CollapsibleContent>
               </SidebarMenuItem>
