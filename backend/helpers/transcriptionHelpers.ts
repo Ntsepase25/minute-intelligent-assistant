@@ -31,8 +31,10 @@ export const googleSttTranscribe = async (
   const config = {
     encoding: "LINEAR16" as const,
     sampleRateHertz: 16000,
-    languageCode: "en-US",
-    alternativeLanguageCodes: ["st-ZA"],
+    languageCode: "st-ZA", // Primary language: Sesotho (South Africa)
+    alternativeLanguageCodes: ["en-US", "en-ZA"], // Alternative languages: English (US & South African)
+    enableAutomaticPunctuation: true,
+    model: "latest_long", // Better for longer audio files
   };
 
   const request = {
@@ -98,6 +100,8 @@ export async function generateSummary(transcript) {
 
     console.log("🤖 [SUMMARY] Sending request to Google Gemini API...");
     const content = `Analyze the following meeting transcript and extract:
+
+Note: This transcript may contain both English and Sesotho text. Please analyze the content regardless of language and provide the summary in English.
 
 1. MEETING TITLE: A concise, descriptive title based on the main topic/purpose of the meeting
 2. MEETING MINUTES: A concise summary of key discussion points and decisions made
@@ -348,12 +352,15 @@ export async function transcribeFromAssemblyAI(
     apiKey: assemblyApiKey,
   });
 
-  // Start transcription
+  // Start transcription with automatic language detection for multilingual content
   const transcript = await client.transcripts.transcribe({
     audio_url: fileUrl,
     speech_model: "universal",
     format_text: true,
     punctuate: true,
+    language_detection: true, // Enable automatic language detection
+    // Remove fixed language_code since AssemblyAI doesn't support Sesotho
+    // This will auto-detect English and other supported languages
   });
 
   console.log("🔵 [ASSEMBLY-AI] Transcription completed:", transcript.status);
@@ -417,12 +424,13 @@ export async function regenerateTranscript(recordingId: string) {
     apiKey: assemblyApiKey,
   });
 
-  // Start transcription
+  // Start transcription with automatic language detection for multilingual content
   const transcript = await client.transcripts.transcribe({
     audio_url: recording.recordingUrl,
     speech_model: "universal",
     format_text: true,
     punctuate: true,
+    language_detection: true, // Enable automatic language detection
   });
 
   if (transcript.status === "error") {
