@@ -3,16 +3,14 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Pin } from "lucide-react";
-import { useSelectedRecordingStore } from "@/stores/recordingsStore";
+import { useRecordingsStore } from "@/stores/recordingsStore";
 import MeetingSummary from "@/components/dashboard/MeetingSummary";
 import ActionItems from "@/components/dashboard/ActionItems";
 import NextMeeting from "@/components/dashboard/NextMeeting";
 import Transcript from "@/components/dashboard/Transcript";
 
 export default function BentoGrid() {
-  const selectedRecording = useSelectedRecordingStore(
-    (state) => state.selectedRecording
-  );
+  const { selectedRecording } = useRecordingsStore();
 
   if (!selectedRecording) {
     return (

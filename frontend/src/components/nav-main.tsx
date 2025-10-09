@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/sidebar";
 import { SidebarLoadingSkeleton } from "./dashboard/loadingSidebar";
 import { recording, sidebarItem } from "@/lib/types";
-import { useSelectedRecordingStore } from "@/stores/recordingsStore";
+import { useRecordingsStore } from "@/stores/recordingsStore";
 
 export function NavMain({
   items,
@@ -34,14 +34,15 @@ export function NavMain({
   }[];
   loading?: boolean;
 }) {
-  const selectedRecording = useSelectedRecordingStore(
-    (state) => state.selectedRecording
-  );
+  const { selectedRecording, setSelectedRecording, recordings } = useRecordingsStore();
+  
+  // Override items with global store recordings if available
+  const navItems = items.map(item => ({
+    ...item,
+    items: item.title === "Recordings" && recordings.length > 0 ? recordings : item.items
+  }));
 
-  const setSelectedRecording = useSelectedRecordingStore(
-    (state) => state.setSelectedRecording
-  );
-  console.log("NavMain items: ", items);
+  // console.log("NavMain items: ", navItems);
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Platform</SidebarGroupLabel>
@@ -49,7 +50,7 @@ export function NavMain({
         {loading ? (
           <SidebarLoadingSkeleton />
         ) : (
-          items.map((item) => (
+          navItems.map((item) => (
             <Collapsible
               key={item.title}
               asChild
@@ -71,7 +72,7 @@ export function NavMain({
                         <SidebarMenuSubItem
                           key={subItem.id}
                           className={
-                            subItem.id === selectedRecording.id
+                            subItem.id === selectedRecording?.id
                               ? "bg-accent rounded"
                               : ""
                           }
@@ -82,7 +83,7 @@ export function NavMain({
                             onClick={() => setSelectedRecording(subItem)}
                           >
                             {/* <a href={subItem.url}> */}
-                            <span>{subItem.title || subItem.meetingId}</span>
+                            <span className="truncate">{(subItem.title || subItem.meetingId).substring(0, 25)}...</span>
                             {/* </a> */}
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

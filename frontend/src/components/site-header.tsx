@@ -1,12 +1,10 @@
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { useSelectedRecordingStore } from "@/stores/recordingsStore";
+import { useRecordingsStore } from "@/stores/recordingsStore";
 
 export function SiteHeader() {
-  const selectedRecording = useSelectedRecordingStore(
-    (state) => state.selectedRecording
-  );
+  const { selectedRecording } = useRecordingsStore();
 
   // console.log("selectedRecording in SiteHeader: ", selectedRecording);
   return (

@@ -2,7 +2,7 @@ import { RefreshCcw, Trash2, Loader2, FileText, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { recording } from "@/lib/types";
-import { useSelectedRecordingStore } from "@/stores/recordingsStore";
+import { useRecordingsStore } from "@/stores/recordingsStore";
 import AudioPlayer from "./audioPlayer";
 import { AudioPlayerLoadingSkeleton } from "./audioPlayerSkeleton";
 import { useState } from "react";
@@ -13,7 +13,7 @@ type Props = {
 };
 
 const TopComponent = ({ loading }: Props) => {
-  const { selectedRecording, setSelectedRecording } = useSelectedRecordingStore();
+  const { selectedRecording, setSelectedRecording, updateRecording } = useRecordingsStore();
   const [regeneratingTranscript, setRegeneratingTranscript] = useState(false);
   const [regeneratingSummary, setRegeneratingSummary] = useState(false);
 
@@ -47,6 +47,7 @@ const TopComponent = ({ loading }: Props) => {
       };
       
       setSelectedRecording(updatedRecording);
+      updateRecording(updatedRecording); // Update global recordings state
       toast.success("Transcript regenerated successfully", { id: "transcript-regen" });
       
       // Step 2: Automatically regenerate summary
@@ -81,6 +82,7 @@ const TopComponent = ({ loading }: Props) => {
         };
         
         setSelectedRecording(finalUpdatedRecording);
+        updateRecording(finalUpdatedRecording); // Update global recordings state
         toast.success("Summary auto-regenerated successfully!", { id: "summary-auto-regen" });
       } catch (summaryError) {
         console.error("Error regenerating summary:", summaryError);
@@ -134,6 +136,7 @@ const TopComponent = ({ loading }: Props) => {
       };
       
       setSelectedRecording(updatedRecording);
+      updateRecording(updatedRecording); // Update global recordings state
       toast.success("Summary regenerated successfully");
     } catch (error) {
       console.error("Error regenerating summary:", error);

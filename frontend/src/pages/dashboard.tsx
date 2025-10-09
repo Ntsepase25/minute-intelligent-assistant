@@ -28,7 +28,7 @@ import { DataTable } from "@/components/data-table";
 import { SectionCards } from "@/components/section-cards";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { useSelectedRecordingStore } from "@/stores/recordingsStore";
+import { useRecordingsStore } from "@/stores/recordingsStore";
 
 import { toast } from "sonner";
 import TopComponent from "@/components/dashboard/recordingPage/topComponent";
@@ -37,88 +37,8 @@ import { BentoGridLoadingSkeleton } from "@/components/dashboard/recordingPage/b
 
 const DashBoard = () => {
   const { data: session, isPending } = authClient.useSession();
-  const [recordings, setRecordings] = useState<recording[] | null>(null);
+  const { recordings, loading, fetchRecordings } = useRecordingsStore();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [loading, setLoading] = useState(true);
-  const [items, setItems] = useState<recording[] | null>(null);
-  const setSelectedRecording = useSelectedRecordingStore(
-    (state) => state.setSelectedRecording
-  );
-
-  const fetchRecordings = async () => {
-    try {
-      const response = await fetch(
-        // @ts-ignore
-        `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include", // This is crucial for sending cookies
-        }
-      );
-      const data = await response.json();
-      // console.log("recordings: ", data);
-
-      if (!response.ok) {
-        toast.error(data.message || "Failed to fetch recordings");
-        return;
-      }
-      if (!data.recordings || data.recordings.length === 0) {
-        setRecordings([]);
-        setLoading(false);
-        return;
-      }
-      setRecordings(
-        data.recordings.map((recording: recording) => {
-          if (recording.id === data.recordings[0].id) {
-            return {
-              ...recording,
-              selected: true,
-            };
-          }
-          return {
-            ...recording,
-            selected: false,
-          };
-        })
-      );
-      setItems(
-        data.recordings.map((recording: recording) => {
-          if (recording.id === data.recordings[0].id) {
-            setSelectedRecording({
-              ...recording,
-              title:
-                recording.title || recording.meetingId || "Untitled Meeting",
-              selected: true,
-              id: recording.id,
-            });
-            return {
-              title:
-                recording.title || recording.meetingId || "Untitled Meeting",
-              url: `/recordings/${recording.id}`,
-              selected: true,
-              ...recording,
-            };
-          }
-          return {
-            title: recording.title || recording.meetingId || "Untitled Meeting",
-            url: `/recordings/${recording.id}`,
-            selected: false,
-            ...recording,
-          };
-        })
-      );
-      setLoading(false);
-    } catch (error) {
-      console.error("Error fetching recordings:", error);
-      toast.error(
-        "Failed to fetch recordings. Please refresh page to try again."
-      );
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
     const handleOnline = () => {
@@ -159,12 +79,13 @@ const DashBoard = () => {
   useEffect(() => {
     console.log("Session data:", session);
     if (!isPending && session) {
-      fetchRecordings();
+      fetchRecordings().catch((error) => {
+        toast.error(
+          "Failed to fetch recordings. Please refresh page to try again."
+        );
+      });
     }
-    if (!session && !loading) {
-      setLoading(false);
-    }
-  }, [session]);
+  }, [session, isPending, fetchRecordings]);
 
   // console.log("recordings in useState: ", recordings)
 
@@ -179,7 +100,7 @@ const DashBoard = () => {
     >
       <AppSidebar
         variant="inset"
-        items={items}
+        items={recordings}
         loading={loading}
         isLoadingUser={isPending}
         user={session?.user}
