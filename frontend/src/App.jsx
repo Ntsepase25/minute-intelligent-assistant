@@ -1,15 +1,12 @@
-import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import viteLogo from "/vite.svg";
-import "./App.css";
+import React from "react";
+import Landingpage from "./components/landingpage";
+import "./App.css"; 
 
 function App() {
-  const [count, setCount] = useState(0);
-
   return (
-    <>
-      <div>Hello</div>
-    </>
+    <div className="App">
+      <Landingpage />
+    </div>
   );
 }
 
