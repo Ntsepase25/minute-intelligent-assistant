@@ -51,9 +51,7 @@ const DashboardBodyCard = ({ recording }: Props) => {
             <FormattedText text={recording.summary} />
           ) : (
             <div>
-              Lorem ipsum dolor sit amet consectetur adipiscing elit. Sit amet
-              consectetur adipiscing elit quisque faucibus ex. Adipiscing elit
-              quisque faucibus ex sapien vitae pellentesque.
+              No summary available
             </div>
           )}
         </CardDescription>

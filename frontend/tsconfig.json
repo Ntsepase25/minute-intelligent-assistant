@@ -1,10 +1,11 @@
 {
-   "include": ["**/*.js", "**/*.jsx", "src/pages/dashboard.tsx"],
+   "include": ["**/*.js", "**/*.jsx", "**/*.tsx", "src/pages/dashboard.tsx"],
   "compilerOptions": {
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"]
-    }
+    },
+    "resolveJsonModule": true,
   }
 }

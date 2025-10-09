@@ -1,28 +1,25 @@
-import React from "react";
-import { Button } from "../../ui/button";
 import { RefreshCcw, Trash2 } from "lucide-react";
-import { recording } from "../../../lib/types";
+import { Button } from "@/components/ui/button";
+import { recording } from "@/lib/types";
+import { useSelectedRecordingStore } from "@/stores/recordingsStore";
+import AudioPlayer from "./audioPlayer";
+import { AudioPlayerLoadingSkeleton } from "./audioPlayerSkeleton";
 
 type Props = {
-  recording: recording;
   loading: boolean;
 };
-const TopComponent = ({ recording, loading }: Props) => {
+const TopComponent = ({ loading }: Props) => {
+  const recording = useSelectedRecordingStore(
+    (state) => state.selectedRecording
+  );
+
   return (
-    <div className="flex md:flex-row flex-col gap-2 justify-between mx-2">
-      <div className="flex flex-col">
-        <div className="font-bold text-xl">
-          Meeting ID:{" "}
-          {!loading && recording && (
-            <span className=" font-normal">
-              {recording.meetingId}
-            </span>
-          )}
-        </div>
-        {!loading && recording && (
-          <div className="text-muted-foreground text-sm">
-            {recording.meetingPlatform}
-          </div>
+    <div className="flex lg:flex-row flex-col gap-2 justify-between mx-2">
+      <div>
+        {loading ? (
+          <AudioPlayerLoadingSkeleton />
+        ) : (
+          <AudioPlayer audioUrl={recording?.recordingUrl} />
         )}
       </div>
       <div className="flex gap-2 items-center">
