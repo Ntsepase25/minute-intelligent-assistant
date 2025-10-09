@@ -84,6 +84,7 @@ model Recording {
   transcript          String?
   summary             String?
   googleOperationName String?
+  assemblyOperationId String?
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
