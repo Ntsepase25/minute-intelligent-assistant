@@ -1,18 +1,5 @@
 import { create } from "zustand";
-
-type recording = {
-  createdAt: Date;
-  updatedAt: Date;
-  userId: string;
-  meetingId: string | null;
-  meetingPlatform: string | null;
-  transcript: string | null;
-  summary: string | null;
-  recordingUrl: string;
-  id: string;
-  selected: boolean;
-  title: string;
-};
+import { recording } from "@/lib/types";
 
 interface SelectedRecordingState {
   selectedRecording: recording | null;

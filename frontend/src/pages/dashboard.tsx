@@ -89,20 +89,19 @@ const DashBoard = () => {
           if (recording.id === data.recordings[0].id) {
             setSelectedRecording({
               ...recording,
-              title: recording.meetingId,
-              // url: `/recordings/${recording.id}`,
+              title: recording.title || recording.meetingId || "Untitled Meeting",
               selected: true,
               id: recording.id,
             });
             return {
-              title: recording.meetingId,
+              title: recording.title || recording.meetingId || "Untitled Meeting",
               url: `/recordings/${recording.id}`,
               selected: true,
               ...recording,
             };
           }
           return {
-            title: recording.meetingId,
+            title: recording.title || recording.meetingId || "Untitled Meeting",
             url: `/recordings/${recording.id}`,
             selected: false,
             ...recording,

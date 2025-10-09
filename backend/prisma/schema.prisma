@@ -83,6 +83,11 @@ model Recording {
   recordingUrl        String?
   transcript          String?
   summary             String?
+  title               String?
+  minutes             String?
+  actionItems         Json?
+  nextMeeting         Json?
+  summaryData         Json?    // Raw JSON from Gemini
   googleOperationName String?
   assemblyOperationId String?
   createdAt           DateTime @default(now())

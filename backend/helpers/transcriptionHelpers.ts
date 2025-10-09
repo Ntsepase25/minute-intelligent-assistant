@@ -58,7 +58,7 @@ export const googleSttTranscribe = async (
 };
 
 export async function generateSummary(transcript) {
-  console.log("🤖 [SUMMARY] Starting summary generation...");
+  console.log("🤖 [SUMMARY] Starting comprehensive summary generation...");
   console.log(
     "🤖 [SUMMARY] Transcript length:",
     transcript?.length || 0,
@@ -77,19 +77,54 @@ export async function generateSummary(transcript) {
       console.log(
         "🤖 [SUMMARY] Skipping summary - invalid transcript detected"
       );
-      return "No summary available - unable to transcribe audio content.";
+      return {
+        title: "Meeting Recording",
+        minutes: "No summary available - unable to transcribe audio content.",
+        actionItems: [],
+        nextMeeting: null,
+      };
     }
 
     const googleApiKey = process.env.GEMINI_API_KEY;
     if (!googleApiKey) {
       console.log("🤖 [SUMMARY] ❌ Google API key not configured");
-      return "Google API key not configured";
+      return {
+        title: "Meeting Recording",
+        minutes: "Google API key not configured",
+        actionItems: [],
+        nextMeeting: null,
+      };
     }
 
-    // console.log("api key: ", googleApiKey);
-
     console.log("🤖 [SUMMARY] Sending request to Google Gemini API...");
-    const content = `Summarize the following meeting transcript in a concise manner, highlighting key points and action items:\n\n${transcript}\n\nSummary:`;
+    const content = `Analyze the following meeting transcript and extract:
+
+1. MEETING TITLE: A concise, descriptive title based on the main topic/purpose of the meeting
+2. MEETING MINUTES: A concise summary of key discussion points and decisions made
+3. ACTION ITEMS: Specific tasks mentioned with assigned person (if mentioned) and deadlines (if mentioned)
+4. NEXT MEETING: Any mention of when/where the next meeting will be held
+
+Please format your response as JSON:
+{
+  "title": "Descriptive meeting title based on main topic discussed",
+  "minutes": "Summary of the meeting discussion and key decisions...",
+  "actionItems": [
+    {
+      "task": "Description of the task",
+      "assignee": "Person assigned (or 'Unassigned' if not mentioned)",
+      "deadline": "Deadline mentioned (or null if not specified)",
+      "priority": "high/medium/low (based on context, or 'medium' as default)"
+    }
+  ],
+  "nextMeeting": {
+    "date": "Date/time mentioned (or null)",
+    "location": "Location/platform mentioned (or null)",
+    "notes": "Any additional details about next meeting"
+  }
+}
+
+Transcript:
+${transcript}`;
 
     const ai = new GoogleGenAI({ apiKey: googleApiKey });
 
@@ -99,17 +134,48 @@ export async function generateSummary(transcript) {
     });
 
     console.log("🤖 [SUMMARY] ✅ Summary generated successfully");
+
+    let parsedResponse;
+    try {
+      // Try to parse the JSON response
+      const responseText = response.text || "";
+      // Extract JSON from response (in case there's extra text)
+      const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+      const jsonString = jsonMatch ? jsonMatch[0] : responseText;
+      parsedResponse = JSON.parse(jsonString);
+    } catch (parseError) {
+      console.warn(
+        "🤖 [SUMMARY] ⚠️ Failed to parse JSON response, using fallback format"
+      );
+      // Fallback to plain text format
+      parsedResponse = {
+        title: "Meeting Recording",
+        minutes:
+          response.text ||
+          "Summary generation completed but no content returned.",
+        actionItems: [],
+        nextMeeting: null,
+      };
+    }
+
     console.log(
-      "🤖 [SUMMARY] Summary length:",
-      response.text?.length || 0,
-      "characters"
+      "🤖 [SUMMARY] Action items found:",
+      parsedResponse.actionItems?.length || 0
     );
-    return (
-      response.text || "Summary generation completed but no content returned."
+    console.log(
+      "🤖 [SUMMARY] Next meeting:",
+      parsedResponse.nextMeeting?.date ? "Scheduled" : "Not mentioned"
     );
+
+    return parsedResponse;
   } catch (error) {
     console.error("🤖 [SUMMARY] ❌ Summary generation error:", error);
-    return "Failed to generate summary due to an error.";
+    return {
+      title: "Meeting Recording",
+      minutes: "Failed to generate summary due to an error.",
+      actionItems: [],
+      nextMeeting: null,
+    };
   }
 }
 
@@ -212,7 +278,15 @@ export async function transcribeFromLocalPath(
       );
       await prisma.recording.update({
         where: { id: recordingId },
-        data: { transcript: transcriptText, summary },
+        data: { 
+          transcript: transcriptText, 
+          summary: typeof summary === 'string' ? summary : summary.minutes,
+          title: typeof summary === 'object' ? summary.title : null,
+          minutes: typeof summary === 'object' ? summary.minutes : null,
+          actionItems: typeof summary === 'object' ? summary.actionItems : null,
+          nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
+          summaryData: typeof summary === 'object' ? summary : null,
+        },
       });
       console.log("🎤 [TRANSCRIBE] ✅ Database updated successfully");
     }
@@ -290,7 +364,6 @@ export async function transcribeFromAssemblyAI(
   });
 
   console.log("AssemblyAI transcription initiated:", transcript);
-
 
   if (saveToDb) {
     await prisma.recording.update({
