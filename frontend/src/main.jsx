@@ -15,7 +15,7 @@ createRoot(document.getElementById("root")).render(
         <Route index element={<App />} />
         <Route path="sign-in" element={<SignIn />} />
         <Route path="dashboard" element={<DashBoard />} />
-        <Route path="dashboard/recording/:id" element={<RecordingPage />} />
+        {/* <Route path="dashboard/recording/:id" element={<RecordingPage />} /> */}
       </Routes>
     </BrowserRouter>
     <Toaster position="top-right"/>

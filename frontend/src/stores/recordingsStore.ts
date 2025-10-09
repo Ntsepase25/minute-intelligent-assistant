@@ -55,7 +55,25 @@ export const useRecordingsStore = create<RecordingsState>((set, get) => ({
           credentials: "include",
         }
       );
-      const data = await response.json();
+      
+      // Debug: Log response details
+      // console.log("Response status:", response.status);
+      // console.log("Response headers:", response.headers);
+      // console.log("Response ok:", response.ok);
+      
+      // Get response text first to see what we're actually receiving
+      const responseText = await response.text();
+      // console.log("Raw response:", responseText);
+      
+      // Try to parse as JSON
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("JSON parse error:", parseError);
+        console.error("Response was not valid JSON:", responseText);
+        throw new Error(`Server returned invalid JSON. Response: ${responseText.substring(0, 200)}...`);
+      }
 
       if (!response.ok) {
         throw new Error(data.message || "Failed to fetch recordings");

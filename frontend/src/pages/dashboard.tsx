@@ -77,7 +77,7 @@ const DashBoard = () => {
   }, []);
 
   useEffect(() => {
-    console.log("Session data:", session);
+    // console.log("Session data:", session);
     if (!isPending && session) {
       fetchRecordings().catch((error) => {
         toast.error(
