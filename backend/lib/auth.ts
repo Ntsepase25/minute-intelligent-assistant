@@ -9,6 +9,7 @@ export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql", // or "mysql", "postgresql", ...etc
   }),
+  baseURL: process.env.BETTER_AUTH_URL || "https://minute-intelligent-assistant.onrender.com",
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -22,19 +23,22 @@ export const auth = betterAuth({
     },
   },
   session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days
+    updateAge: 60 * 60 * 24, // 1 day
     cookieCache: {
       enabled: true,
       maxAge: 60 * 60 * 24 * 7, // 7 days
     },
   },
-  cookies: {
-    sessionToken: {
-      name: "better-auth.session_token",
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production", // HTTPS only in prod
-      sameSite: "none", // Required for cross-domain
-      maxAge: 60 * 60 * 24 * 7, // 7 days
+  advanced: {
+    crossSubDomainCookies: {
+      enabled: true,
     },
   },
-  trustedOrigins: ["http://localhost:5173", "http://localhost:8080", "https://minute-intelligent-assistant.onrender.com", process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app"], // Add your frontend URL here
+  trustedOrigins: [
+    "http://localhost:5173", 
+    "http://localhost:8080", 
+    "https://minute-intelligent-assistant.onrender.com", 
+    process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app"
+  ],
 });
