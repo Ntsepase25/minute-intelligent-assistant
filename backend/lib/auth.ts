@@ -13,7 +13,17 @@ export const auth = betterAuth({
   baseURL:
     process.env.BETTER_AUTH_URL ||
     "https://minute-intelligent-assistant.onrender.com",
-    basePath: "/api/auth",
+  basePath: "/api/auth",
+  
+  // Configure trusted origins FIRST
+  trustedOrigins: [
+    "http://localhost:5173",
+    "http://localhost:8080", 
+    "https://minute-intelligent-assistant.onrender.com",
+    process.env.FRONTEND_BASE_URL ||
+      "https://minute-intelligent-assistant.vercel.app",
+  ],
+  
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID || "",
@@ -24,8 +34,10 @@ export const auth = betterAuth({
         "https://www.googleapis.com/auth/meetings.space.settings",
         "https://www.googleapis.com/auth/meetings.space.readonly",
       ],
+      redirectURI: `${process.env.BETTER_AUTH_URL || "https://minute-intelligent-assistant.onrender.com"}/api/auth/callback/google`,
     },
   },
+  
   session: {
     cookieCache: {
       enabled: true,
@@ -39,13 +51,8 @@ export const auth = betterAuth({
     cookieOptions: {
       sameSite: "none", // Required for cross-site cookies
       secure: true, // Required when sameSite is "none"
+      httpOnly: true,
+      path: "/",
     },
   },
-  trustedOrigins: [
-    "http://localhost:5173",
-    "http://localhost:8080",
-    "https://minute-intelligent-assistant.onrender.com",
-    process.env.FRONTEND_BASE_URL ||
-      "https://minute-intelligent-assistant.vercel.app",
-  ],
 });

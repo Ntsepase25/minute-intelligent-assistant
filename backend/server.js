@@ -16,12 +16,20 @@ const app = express();
 // Enable CORS with credentials support
 app.use(
   cors({
-    origin: [
-      process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app",
-      "https://minute-intelligent-assistant.onrender.com", // Allow direct backend access
-      "http://localhost:5173", // Local development
-      "http://localhost:8080"  // Local backend
-    ],
+    origin: function (origin, callback) {
+      const allowedOrigins = [
+        process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app",
+        "https://minute-intelligent-assistant.onrender.com",
+        "http://localhost:5173",
+        "http://localhost:8080"
+      ];
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(null, true); // Allow all for now to debug
+      }
+    },
     credentials: true, // Allow credentials (cookies, auth headers)
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     optionsSuccessStatus: 200,
@@ -47,11 +55,10 @@ app.all("/api/auth/*splat", async (req, res, next) => {
     origin: req.headers.origin,
     cookies: req.headers.cookie,
     userAgent: req.headers['user-agent'],
-    headers: req.headers
   });
 
   // Try to get session if this is a get-session request
-  if (req.url === '/get-session' || req.url === '/session') {
+  if (req.url.includes('/get-session') || req.url.includes('/session')) {
     try {
       const session = await auth.api.getSession({
         headers: req.headers,
@@ -63,6 +70,16 @@ app.all("/api/auth/*splat", async (req, res, next) => {
   }
 
   const handler = toNodeHandler(auth);
+  
+  // Intercept response to log Set-Cookie headers
+  const originalSetHeader = res.setHeader;
+  res.setHeader = function(name, value) {
+    if (name.toLowerCase() === 'set-cookie') {
+      console.log("🍪 Setting cookies:", value);
+    }
+    return originalSetHeader.call(this, name, value);
+  };
+  
   return handler(req, res);
 });
 
