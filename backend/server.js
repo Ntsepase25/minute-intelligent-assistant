@@ -30,7 +30,7 @@ app.use(
 
 const PORT = process.env.PORT || 3000;
 
-app.all("/api/auth/*", (req, res, next) => {
+app.all("/api/auth/{*any}", (req, res, next) => {
   console.log("Auth request:", {
     method: req.method,
     url: req.url,
