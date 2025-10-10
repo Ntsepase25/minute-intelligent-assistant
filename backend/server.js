@@ -30,7 +30,16 @@ app.use(
 
 const PORT = process.env.PORT || 3000;
 
-app.all("/api/auth/{*any}", toNodeHandler(auth));
+app.all("/api/auth/*", (req, res, next) => {
+  console.log("Auth request:", {
+    method: req.method,
+    url: req.url,
+    origin: req.headers.origin,
+    cookies: req.headers.cookie,
+    userAgent: req.headers['user-agent']
+  });
+  next();
+}, toNodeHandler(auth));
 
 // Mount express json middleware after Better Auth handler
 // or only apply it to routes that don't interact with Better Auth

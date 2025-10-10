@@ -29,7 +29,7 @@ export const auth = betterAuth({
   },
   cookies: {
     sessionToken: {
-      name: "session",
+      name: "better-auth.session_token",
       httpOnly: true,
       secure: process.env.NODE_ENV === "production", // HTTPS only in prod
       sameSite: "none", // Required for cross-domain
