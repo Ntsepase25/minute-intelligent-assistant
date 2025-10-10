@@ -76,6 +76,11 @@ export default function BentoGrid() {
             <Transcript transcript={selectedRecording.transcript} />
           )}
         </div>
+
+        {/* Regular Transcript - Full width on mobile/tablet, 3 cols on desktop */}
+        <div className="col-span-1 lg:col-span-3 min-h-60">
+          <Transcript transcript={selectedRecording.transcript} />
+        </div>
       </div>
     </section>
   );
