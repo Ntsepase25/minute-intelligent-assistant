@@ -33,12 +33,12 @@ export const auth = betterAuth({
     },
   },
 
-  // Configure cookies for cross-origin with auto-detection
+  // Configure cookies for cross-origin (render.com -> vercel.app)
   advanced: {
-    useSecureCookies: true, // ✅ Auto-detects production
-    crossSubDomainCookies: {
-      enabled: true,
-      domain: ".vercel.app",
+    useSecureCookies: true,
+    cookieOptions: {
+      sameSite: "none", // Required for cross-site cookies
+      secure: true, // Required when sameSite is "none"
     },
   },
   trustedOrigins: [
