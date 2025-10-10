@@ -4,6 +4,7 @@ import { auth } from "./lib/auth.js";
 import cors from "cors";
 import recordingsRouter from "./routes/recordings.js";
 import { createRouteHandler } from "uploadthing/express";
+import cookieParser from "cookie-parser";
 
 import { uploadRouter } from "./uploadthing.js";
 import dotenv from "dotenv";
@@ -23,6 +24,7 @@ app.use(
     ],
     credentials: true, // Allow credentials (cookies, auth headers)
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    optionsSuccessStatus: 200,
     allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
     exposedHeaders: ["Set-Cookie"],
   })
@@ -44,7 +46,8 @@ app.all("/api/auth/*splat", async (req, res, next) => {
     url: req.url,
     origin: req.headers.origin,
     cookies: req.headers.cookie,
-    userAgent: req.headers['user-agent']
+    userAgent: req.headers['user-agent'],
+    headers: req.headers
   });
 
   // Try to get session if this is a get-session request
@@ -59,12 +62,14 @@ app.all("/api/auth/*splat", async (req, res, next) => {
     }
   }
 
-  next();
-}, toNodeHandler(auth));
+  const handler = toNodeHandler(auth);
+  return handler(req, res);
+});
 
 // Mount express json middleware after Better Auth handler
 // or only apply it to routes that don't interact with Better Auth
 app.use(express.json());
+app.use(cookieParser());
 
 app.use("/recordings", recordingsRouter);
 

@@ -10,7 +10,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "node --max-old-space-size=512 ./node_modules/.bin/tsc --incremental",
-    "build:esbuild": "esbuild server.js --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.js --external:@prisma/client --external:better-auth --external:@google-cloud/speech --external:@google/genai --external:assemblyai --external:fluent-ffmpeg --external:ffmpeg-static --external:multer --external:uploadthing --external:cors --external:express --external:dotenv",
+    "build:esbuild": "esbuild server.js --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.js --external:@prisma/client --external:better-auth --external:@google-cloud/speech --external:@google/genai --external:assemblyai --external:fluent-ffmpeg --external:ffmpeg-static --external:multer --external:uploadthing --external:cors --external:express --external:dotenv --external:cookie-parser",
     "start": "prisma generate && npm run build:esbuild && node dist/server.js",
     "start:compiled": "prisma generate && npm run build && node dist/server.js",
     "start:esbuild": "prisma generate && npm run build:esbuild && node dist/server.js",
@@ -25,6 +25,7 @@
     "@prisma/client": "^6.16.2",
     "assemblyai": "^4.16.1",
     "better-auth": "^1.3.14",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^5.1.0",
