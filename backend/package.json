@@ -4,11 +4,14 @@
   "description": "mia backend",
   "main": "server.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "node --max-old-space-size=512 ./node_modules/.bin/tsc --incremental",
-    "build:esbuild": "esbuild server.js --bundle --platform=node --target=node18 --format=esm --outfile=dist/server.js --external:@prisma/client --external:better-auth --external:@google-cloud/speech --external:@google/genai --external:assemblyai --external:fluent-ffmpeg --external:ffmpeg-static --external:multer --external:uploadthing --external:cors --external:express --external:dotenv",
-    "start": "prisma generate && node --max-old-space-size=256 server.js",
+    "build:esbuild": "esbuild server.js --bundle --platform=node --target=node20 --format=esm --outfile=dist/server.js --external:@prisma/client --external:better-auth --external:@google-cloud/speech --external:@google/genai --external:assemblyai --external:fluent-ffmpeg --external:ffmpeg-static --external:multer --external:uploadthing --external:cors --external:express --external:dotenv",
+    "start": "prisma generate && npm run build:esbuild && node dist/server.js",
     "start:compiled": "prisma generate && npm run build && node dist/server.js",
     "start:esbuild": "prisma generate && npm run build:esbuild && node dist/server.js",
     "dev": "nodemon server.js"
