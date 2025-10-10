@@ -1,7 +1,19 @@
 import { createAuthClient } from "better-auth/react";
+
+const getBaseURL = () => {
+  // In production, use the same domain (proxied through Vercel)
+  if (import.meta.env.PROD) {
+    return window.location.origin;
+  }
+  // In development, use the backend URL directly
+  return import.meta.env.VITE_BETTER_AUTH_URL || "http://localhost:8080";
+};
+
 export const authClient = createAuthClient({
-  /** The base URL of the server (optional if you're using the same domain) */
-  baseURL: import.meta.env.VITE_BETTER_AUTH_URL || "https://minute-intelligent-assistant.onrender.com",
+  baseURL: getBaseURL(),
+  fetchOptions: {
+    credentials: "include", // Always include cookies
+  },
 });
 
 export const {
