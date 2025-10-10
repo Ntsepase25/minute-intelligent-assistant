@@ -8,6 +8,7 @@ import MeetingSummary from "@/components/dashboard/MeetingSummary";
 import ActionItems from "@/components/dashboard/ActionItems";
 import NextMeeting from "@/components/dashboard/NextMeeting";
 import Transcript from "@/components/dashboard/Transcript";
+import TranscriptWithSpeakers from "@/components/dashboard/TranscriptWithSpeakers";
 
 export default function BentoGrid() {
   const { selectedRecording } = useRecordingsStore();
@@ -64,7 +65,16 @@ export default function BentoGrid() {
 
         {/* Transcript - Takes 2 columns */}
         <div className="col-span-1 md:col-span-2 min-h-60">
-          <Transcript transcript={selectedRecording.transcript} />
+          {selectedRecording.meetingPlatform === "google-meet" && 
+           selectedRecording.transcriptEntries && 
+           selectedRecording.transcriptEntries.length > 0 ? (
+            <TranscriptWithSpeakers 
+              transcriptEntries={selectedRecording.transcriptEntries}
+              participants={selectedRecording.participants}
+            />
+          ) : (
+            <Transcript transcript={selectedRecording.transcript} />
+          )}
         </div>
       </div>
     </section>

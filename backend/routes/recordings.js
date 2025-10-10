@@ -13,6 +13,7 @@ import { createRecording } from "../contollers/recordings.controller.ts";
 import { convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
 // import { transcribeFromLocalPath, convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
 import { regenerateTranscript, regenerateSummary } from "../helpers/transcriptionHelpers.ts";
+import { processGoogleMeetRecording } from "../helpers/googleMeetHelpers.ts";
 
 import { fromNodeHeaders } from "better-auth/node";
 
@@ -84,6 +85,12 @@ recordingsRouter.get("/", async (req, res) => {
 
     const recordings = await prisma.recording.findMany({
       where: { userId: userSession.user.id },
+      include: {
+        participants: true,
+        transcriptEntries: {
+          orderBy: { startTime: "asc" },
+        },
+      },
       orderBy: { createdAt: "desc" },
     });
     return res.status(200).json({ recordings });
@@ -595,6 +602,12 @@ recordingsRouter.get("/:recordingId", async (req, res) => {
 
     const recording = await prisma.recording.findUnique({
       where: { id: recordingId },
+      include: {
+        participants: true,
+        transcriptEntries: {
+          orderBy: { startTime: "asc" },
+        },
+      },
     });
     if (!recording)
       return res.status(404).json({ message: "Recording not found" });
@@ -729,8 +742,8 @@ recordingsRouter.get("/assembly-ai-status/:transcriptId", async (req, res) => {
   }
 });
 
-// Regenerate transcript endpoint
-recordingsRouter.post("/regenerate-transcript/:recordingId", async (req, res) => {
+// Fetch Google Meet participants and transcript entries for existing recording
+recordingsRouter.post("/fetch-google-meet-data/:recordingId", async (req, res) => {
   try {
     const { recordingId } = req.params;
     const userSession = await auth.api.getSession({
@@ -747,13 +760,148 @@ recordingsRouter.post("/regenerate-transcript/:recordingId", async (req, res) =>
     if (recording.userId !== userSession.user.id)
       return res.status(403).json({ message: "Access denied" });
 
+    if (recording.meetingPlatform !== "google-meet") {
+      return res.status(400).json({ 
+        error: "Recording is not from Google Meet" 
+      });
+    }
+
+    if (!recording.meetingId) {
+      return res.status(400).json({ 
+        error: "No meeting ID available for this recording" 
+      });
+    }
+
+    console.log(`🟢 [API] Fetching Google Meet data for recording: ${recordingId}`);
+    
+    // Check if we already have participant data
+    const existingParticipants = await prisma.participant.findMany({
+      where: { recordingId },
+    });
+
+    if (existingParticipants.length > 0) {
+      const existingTranscriptEntries = await prisma.transcriptEntry.findMany({
+        where: { recordingId },
+        orderBy: { startTime: "asc" },
+      });
+
+      return res.status(200).json({
+        message: "Google Meet data already exists",
+        participants: existingParticipants,
+        transcriptEntries: existingTranscriptEntries,
+        alreadyExists: true,
+      });
+    }
+
+    // Process Google Meet data
+    const googleMeetData = await processGoogleMeetRecording(
+      recordingId,
+      recording.meetingId,
+      userSession.user.id
+    );
+
+    if (!googleMeetData) {
+      return res.status(404).json({
+        error: "Could not find Google Meet conference data for this meeting"
+      });
+    }
+
+    // Update recording transcript if we got a better one from Google Meet
+    if (googleMeetData.fullTranscript && !recording.transcript) {
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { transcript: googleMeetData.fullTranscript },
+      });
+    }
+
+    // Fetch the saved data
+    const participants = await prisma.participant.findMany({
+      where: { recordingId },
+    });
+
+    const transcriptEntries = await prisma.transcriptEntry.findMany({
+      where: { recordingId },
+      orderBy: { startTime: "asc" },
+    });
+
+    return res.status(200).json({
+      message: "Google Meet data fetched successfully",
+      participants,
+      transcriptEntries,
+      alreadyExists: false,
+    });
+  } catch (error) {
+    console.error("Fetch Google Meet data error:", error);
+    return res.status(500).json({
+      error: "Failed to fetch Google Meet data",
+      details: error?.message || String(error),
+    });
+  }
+});
+
+// Regenerate transcript endpoint
+recordingsRouter.post("/regenerate-transcript/:recordingId", async (req, res) => {
+  try {
+    const { recordingId } = req.params;
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const recording = await prisma.recording.findUnique({
+      where: { id: recordingId },
+      include: {
+        participants: true,
+        transcriptEntries: true,
+      },
+    });
+    if (!recording)
+      return res.status(404).json({ message: "Recording not found" });
+    if (recording.userId !== userSession.user.id)
+      return res.status(403).json({ message: "Access denied" });
+
     console.log(`🔄 [API] Starting transcript regeneration for recording: ${recordingId}`);
     
+    // If this is a Google Meet recording, try to fetch participant data first
+    if (recording.meetingPlatform === "google-meet" && 
+        recording.meetingId && 
+        recording.participants.length === 0) {
+      
+      console.log(`🔄 [API] Fetching Google Meet data for Google Meet recording`);
+      
+      try {
+        const googleMeetData = await processGoogleMeetRecording(
+          recordingId,
+          recording.meetingId,
+          userSession.user.id
+        );
+
+        if (googleMeetData && googleMeetData.fullTranscript) {
+          // Update with Google Meet transcript
+          await prisma.recording.update({
+            where: { id: recordingId },
+            data: { transcript: googleMeetData.fullTranscript },
+          });
+
+          return res.status(200).json({
+            message: "Transcript regenerated using Google Meet data",
+            transcript: googleMeetData.fullTranscript,
+            hasParticipantData: true,
+          });
+        }
+      } catch (googleMeetError) {
+        console.warn(`🔄 [API] Could not fetch Google Meet data, falling back to regular regeneration:`, googleMeetError);
+      }
+    }
+    
+    // Fall back to regular transcript regeneration
     const result = await regenerateTranscript(recordingId);
 
     return res.status(200).json({
       message: "Transcript regenerated successfully",
       transcript: result.transcriptText,
+      hasParticipantData: recording.participants.length > 0,
     });
   } catch (error) {
     console.error("Regenerate transcript error:", error);
@@ -776,6 +924,10 @@ recordingsRouter.post("/regenerate-summary/:recordingId", async (req, res) => {
 
     const recording = await prisma.recording.findUnique({
       where: { id: recordingId },
+      include: {
+        participants: true,
+        transcriptEntries: true,
+      },
     });
     if (!recording)
       return res.status(404).json({ message: "Recording not found" });
@@ -784,11 +936,38 @@ recordingsRouter.post("/regenerate-summary/:recordingId", async (req, res) => {
 
     console.log(`🔄 [API] Starting summary regeneration for recording: ${recordingId}`);
     
+    // If this is a Google Meet recording, try to fetch participant data first
+    if (recording.meetingPlatform === "google-meet" && 
+        recording.meetingId && 
+        recording.participants.length === 0) {
+      
+      console.log(`🔄 [API] Fetching Google Meet data for Google Meet recording`);
+      
+      try {
+        const googleMeetData = await processGoogleMeetRecording(
+          recordingId,
+          recording.meetingId,
+          userSession.user.id
+        );
+
+        if (googleMeetData && googleMeetData.fullTranscript) {
+          // Update with Google Meet transcript
+          await prisma.recording.update({
+            where: { id: recordingId },
+            data: { transcript: googleMeetData.fullTranscript },
+          });
+        }
+      } catch (googleMeetError) {
+        console.warn(`🔄 [API] Could not fetch Google Meet data, proceeding with existing transcript:`, googleMeetError);
+      }
+    }
+    
     const summary = await regenerateSummary(recordingId);
 
     return res.status(200).json({
       message: "Summary regenerated successfully",
       summary,
+      hasParticipantData: recording.participants.length > 0,
     });
   } catch (error) {
     console.error("Regenerate summary error:", error);

@@ -18,6 +18,32 @@ export type MeetingSummaryData = {
   nextMeeting: NextMeeting | null;
 };
 
+export type Participant = {
+  id: string;
+  recordingId: string;
+  googleParticipantId: string;
+  googleUserId: string | null;
+  displayName: string | null;
+  participantType: "signedinUser" | "anonymousUser" | "phoneUser";
+  earliestStartTime: Date | null;
+  latestEndTime: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+export type TranscriptEntry = {
+  id: string;
+  recordingId: string;
+  googleEntryId: string;
+  googleParticipantId: string | null;
+  text: string;
+  languageCode: string | null;
+  startTime: Date;
+  endTime: Date;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 export type recording = {
   createdAt: Date;
   updatedAt: Date;
@@ -35,6 +61,12 @@ export type recording = {
   id: string;
   selected: boolean;
   url: string;
+  
+  // Google Meet specific fields
+  googleMeetConferenceId: string | null;
+  googleMeetSpace: string | null;
+  participants: Participant[] | null;
+  transcriptEntries: TranscriptEntry[] | null;
 };
 
 export type sidebarItem = {

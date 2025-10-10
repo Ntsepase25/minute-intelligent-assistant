@@ -90,8 +90,53 @@ model Recording {
   summaryData         Json?    // Raw JSON from Gemini
   googleOperationName String?
   assemblyOperationId String?
+  
+  // Google Meet specific fields
+  googleMeetConferenceId String?
+  googleMeetSpace        String?
+  
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  participants      Participant[]
+  transcriptEntries TranscriptEntry[]
+}
+
+model Participant {
+  id             String    @id @default(uuid())
+  recordingId    String
+  recording      Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  
+  // From Google Meet API
+  googleParticipantId String  // Format: conferenceRecords/{conferenceRecord}/participants/{participant}
+  googleUserId        String? // For signed-in users: users/{user}
+  displayName         String?
+  participantType     String  // "signedinUser", "anonymousUser", "phoneUser"
+  earliestStartTime   DateTime?
+  latestEndTime       DateTime?
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@map("participants")
+}
+
+model TranscriptEntry {
+  id          String    @id @default(uuid())
+  recordingId String
+  recording   Recording @relation(fields: [recordingId], references: [id], onDelete: Cascade)
+  
+  // From Google Meet transcript entries API
+  googleEntryId      String   // Format: conferenceRecords/{conferenceRecord}/transcripts/{transcript}/entries/{entry}
+  googleParticipantId String? // Links to participant who spoke
+  text               String
+  languageCode       String?
+  startTime          DateTime
+  endTime            DateTime
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@map("transcript_entries")
 }
