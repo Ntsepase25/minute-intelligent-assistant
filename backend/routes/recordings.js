@@ -773,6 +773,8 @@ recordingsRouter.post("/fetch-google-meet-data/:recordingId", async (req, res) =
     }
 
     console.log(`🟢 [API] Fetching Google Meet data for recording: ${recordingId}`);
+    console.log(`🟢 [API] Meeting ID: ${recording.meetingId}`);
+    console.log(`🟢 [API] User ID: ${userSession.user.id}`);
     
     // Check if we already have participant data
     const existingParticipants = await prisma.participant.findMany({
@@ -801,8 +803,36 @@ recordingsRouter.post("/fetch-google-meet-data/:recordingId", async (req, res) =
     );
 
     if (!googleMeetData) {
-      return res.status(404).json({
-        error: "Could not find Google Meet conference data for this meeting"
+      return res.status(200).json({
+        error: "Could not access Google Meet data for this meeting",
+        message: "Google Meet data not available",
+        details: `No Google Meet data found for meeting code: ${recording.meetingId}. This could happen if:
+        • The meeting didn't have transcription enabled (most common reason)
+        • The meeting is too old (Google Meet data has limited retention)
+        • The meeting ID is incorrect or the meeting hasn't ended yet
+        • You don't have access to the meeting
+        • You need to re-authenticate with Google Meet permissions`,
+        meetingId: recording.meetingId,
+        suggestion: "💡 To get participant names and speech data in future meetings, enable transcription when starting your Google Meet sessions.",
+        participants: [],
+        transcriptEntries: [],
+        hasTranscriptEntries: false,
+        hasParticipants: false,
+        isGoogleMeetError: true
+      });
+    }
+
+    // Handle case where we found space but no participants/transcripts
+    if (googleMeetData.participants.length === 0 && googleMeetData.transcriptEntries.length === 0) {
+      return res.status(200).json({
+        message: "Google Meet space found but no participant/transcript data available",
+        details: "The meeting space was located but transcription was likely not enabled during the meeting. To get participant names and speech data, enable transcription in future Google Meet sessions.",
+        participants: [],
+        transcriptEntries: [],
+        alreadyExists: false,
+        hasTranscriptEntries: false,
+        hasParticipants: false,
+        spaceFound: true
       });
     }
 
@@ -824,17 +854,121 @@ recordingsRouter.post("/fetch-google-meet-data/:recordingId", async (req, res) =
       orderBy: { startTime: "asc" },
     });
 
+    // Provide helpful feedback about what data was retrieved
+    let message = "Google Meet data fetched successfully";
+    let details = null;
+    
+    if (participants.length > 0 && transcriptEntries.length > 0) {
+      details = `Found ${participants.length} participants and ${transcriptEntries.length} transcript entries with speaker attribution`;
+    } else if (participants.length > 0 && transcriptEntries.length === 0) {
+      message = "Google Meet participants fetched successfully";
+      details = `Found ${participants.length} participants, but no transcript entries (transcription may not have been enabled during the meeting)`;
+    } else if (participants.length === 0) {
+      details = "No participants or transcript data found for this meeting";
+    }
+
     return res.status(200).json({
-      message: "Google Meet data fetched successfully",
+      message,
+      details,
       participants,
       transcriptEntries,
       alreadyExists: false,
+      hasTranscriptEntries: transcriptEntries.length > 0,
+      hasParticipants: participants.length > 0,
     });
   } catch (error) {
     console.error("Fetch Google Meet data error:", error);
     return res.status(500).json({
       error: "Failed to fetch Google Meet data",
       details: error?.message || String(error),
+    });
+  }
+});
+
+// Debug endpoint to list available Google Meet conferences
+recordingsRouter.get("/debug/google-meet-conferences", async (req, res) => {
+  try {
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const { getGoogleAccessToken } = await import("../helpers/googleMeetHelpers.ts");
+    
+    // Get user's Google access token
+    const account = await prisma.account.findFirst({
+      where: {
+        userId: userSession.user.id,
+        providerId: "google",
+      },
+    });
+
+    if (!account?.accessToken) {
+      return res.status(400).json({ error: "No Google access token found" });
+    }
+
+    // List conference records
+    const listResponse = await fetch(
+      "https://meet.googleapis.com/v2/conferenceRecords",
+      {
+        headers: {
+          Authorization: `Bearer ${account.accessToken}`,
+        },
+      }
+    );
+
+    if (!listResponse.ok) {
+      const errorText = await listResponse.text();
+      return res.status(listResponse.status).json({ 
+        error: "Failed to fetch conference records",
+        details: errorText 
+      });
+    }
+
+    const listData = await listResponse.json();
+    
+    return res.status(200).json({
+      message: "Available Google Meet conferences",
+      conferences: listData.conferenceRecords || [],
+      totalCount: listData.conferenceRecords?.length || 0
+    });
+  } catch (error) {
+    console.error("Debug Google Meet conferences error:", error);
+    return res.status(500).json({
+      error: "Failed to fetch Google Meet conferences",
+      details: error?.message || String(error),
+    });
+  }
+});
+
+// Debug endpoint - Get Google Meet space details
+recordingsRouter.get("/debug/google-meet-space/:meetingCode", async (req, res) => {
+  try {
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const { meetingCode } = req.params;
+    
+    console.log(`🟢 [API] Debug: Getting space details for meeting code: ${meetingCode}`);
+    
+    const { getGoogleMeetSpaceDetails } = await import("../helpers/googleMeetHelpers.ts");
+    const spaceDetails = await getGoogleMeetSpaceDetails(meetingCode, userSession.user.id);
+    
+    return res.status(200).json({
+      meetingCode,
+      spaceDetails,
+      message: spaceDetails ? "Space details retrieved" : "Could not get space details"
+    });
+
+  } catch (error) {
+    console.error("Error in debug space endpoint:", error);
+    return res.status(500).json({ 
+      error: "Failed to get space details",
+      details: error?.message || String(error)
     });
   }
 });

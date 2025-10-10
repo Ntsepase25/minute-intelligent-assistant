@@ -307,6 +307,19 @@ const TopComponent = ({ loading }: Props) => {
 
       const googleMeetData = await googleMeetResponse.json();
       
+      // Handle special case where we got a valid response but it indicates no data
+      if (googleMeetData.isGoogleMeetError) {
+        toast.warning(
+          googleMeetData.suggestion, 
+          { 
+            id: "google-meet-fetch",
+            duration: 8000,
+            description: "This is normal if transcription wasn't enabled during the meeting."
+          }
+        );
+        return; // Don't update the recording state
+      }
+      
       // Update recording with Google Meet data
       const updatedRecording = {
         ...selectedRecording,
@@ -320,11 +333,58 @@ const TopComponent = ({ loading }: Props) => {
       if (googleMeetData.alreadyExists) {
         toast.success("Google Meet data loaded successfully", { id: "google-meet-fetch" });
       } else {
-        toast.success(`Fetched ${googleMeetData.participants.length} participants and ${googleMeetData.transcriptEntries.length} transcript segments`, { id: "google-meet-fetch" });
+        // Show appropriate success message based on what data was retrieved
+        if (googleMeetData.hasParticipants && googleMeetData.hasTranscriptEntries) {
+          toast.success(`Fetched ${googleMeetData.participants.length} participants and ${googleMeetData.transcriptEntries.length} transcript segments`, { id: "google-meet-fetch" });
+        } else if (googleMeetData.hasParticipants && !googleMeetData.hasTranscriptEntries) {
+          toast.success(`Fetched ${googleMeetData.participants.length} participants (no transcript data - transcription may not have been enabled)`, { id: "google-meet-fetch" });
+        } else if (googleMeetData.spaceFound) {
+          toast.info("Google Meet space found but no participant data available - transcription was likely not enabled during the meeting", { id: "google-meet-fetch" });
+        } else {
+          toast.success("Google Meet data fetched successfully", { id: "google-meet-fetch" });
+        }
       }
     } catch (error) {
       console.error("Error fetching Google Meet data:", error);
-      toast.error(`Failed to fetch Google Meet data: ${error.message}`, { id: "google-meet-fetch" });
+      
+      // Parse the error response to get more details
+      let errorData = null;
+      try {
+        if (error.message) {
+          // Try to parse JSON error message
+          const match = error.message.match(/\{.*\}/);
+          if (match) {
+            errorData = JSON.parse(match[0]);
+          }
+        }
+      } catch (parseError) {
+        // Not JSON, continue with original error
+      }
+      
+      // Handle specific Google Meet errors with helpful messages
+      if (errorData && errorData.isGoogleMeetError) {
+        toast.warning(
+          `${errorData.message}: ${errorData.suggestion}`, 
+          { 
+            id: "google-meet-fetch",
+            duration: 8000,
+            description: "This is normal if transcription wasn't enabled during the meeting."
+          }
+        );
+      } else {
+        // Handle different types of errors more gracefully
+        const errorMessage = error.message || String(error);
+        
+        if (errorMessage.includes("transcription")) {
+          toast.warning("Google Meet space found but transcription was not enabled. Enable transcription in future meetings to get participant and speech data.", { id: "google-meet-fetch", duration: 6000 });
+        } else if (errorMessage.includes("404") || errorMessage.includes("not found")) {
+          toast.error("Google Meet data not found. This meeting may be too old, have incorrect meeting ID, or transcription wasn't enabled.", { id: "google-meet-fetch" });
+        } else if (errorMessage.includes("401") || errorMessage.includes("authentication")) {
+          toast.error("Google Meet access denied. Please re-authenticate with Google Meet permissions.", { id: "google-meet-fetch" });
+        } else {
+          toast.error(`Failed to fetch Google Meet data: ${errorMessage}`, { id: "google-meet-fetch" });
+        }
+      }
     } finally {
       setFetchingGoogleMeetData(false);
     }
@@ -339,7 +399,7 @@ const TopComponent = ({ loading }: Props) => {
           <AudioPlayer audioUrl={selectedRecording?.recordingUrl} />
         )}
       </div>
-      <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center">
         {/* Google Meet data fetch button - only show for Google Meet recordings */}
         {selectedRecording?.meetingPlatform === "google-meet" && selectedRecording?.meetingId && (
           <Tooltip>
@@ -421,7 +481,7 @@ const TopComponent = ({ loading }: Props) => {
         </Tooltip>
         <Button variant="destructive" size="sm">
           <Trash2 className="h-4 w-4" />
-          <span className="hidden lg:inline">Delete</span>
+          <span className="">Delete</span>
         </Button>
       </div>
     </div>

@@ -6,15 +6,20 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { FileText, Copy, Download, Search, ChevronDown, ChevronUp, Users, Clock } from "lucide-react";
 import { toast } from "sonner";
 import { TranscriptEntry, Participant } from "@/lib/types";
+import GoogleMeetNotAvailable from "./GoogleMeetNotAvailable";
 
 interface TranscriptWithSpeakersProps {
   transcriptEntries: TranscriptEntry[] | null;
   participants: Participant[] | null;
+  meetingId?: string;
+  googleMeetError?: boolean;
 }
 
 export default function TranscriptWithSpeakers({ 
   transcriptEntries, 
-  participants 
+  participants,
+  meetingId,
+  googleMeetError 
 }: TranscriptWithSpeakersProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -157,7 +162,87 @@ export default function TranscriptWithSpeakers({
     return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800">$1</mark>');
   };
 
+  // Handle case where we have participants but no transcript entries
   if (!transcriptEntries || transcriptEntries.length === 0) {
+    // If this is a Google Meet error case, show the helpful component
+    if (googleMeetError && meetingId) {
+      return <GoogleMeetNotAvailable meetingId={meetingId} />;
+    }
+    
+    if (participants && participants.length > 0) {
+      return (
+        <Card className="h-full">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Meeting Participants
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Users className="h-4 w-4 text-blue-600" />
+                  <span className="text-sm font-medium text-blue-800">
+                    {participants.length} Participant{participants.length !== 1 ? 's' : ''} Found
+                  </span>
+                </div>
+                <p className="text-xs text-blue-700">
+                  Transcript with speaker attribution is not available (transcription may not have been enabled), 
+                  but we found the meeting participants and their join/leave times.
+                </p>
+              </div>
+              
+              <div className="space-y-3">
+                {participants.map((participant, index) => {
+                  const speakerColor = `hsl(${(index * 137.508) % 360}, 70%, 50%)`;
+                  const initials = participant.displayName
+                    .split(' ')
+                    .map(name => name[0])
+                    .join('')
+                    .toUpperCase()
+                    .slice(0, 2);
+
+                  return (
+                    <div key={participant.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                      <Avatar className="h-8 w-8" style={{ backgroundColor: speakerColor }}>
+                        <AvatarFallback style={{ backgroundColor: speakerColor, color: 'white' }}>
+                          {initials}
+                        </AvatarFallback>
+                      </Avatar>
+                      
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-sm">{participant.displayName}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {participant.participantType === 'signedinUser' ? 'Signed In' : 
+                             participant.participantType === 'anonymousUser' ? 'Anonymous' : 'Phone'}
+                          </Badge>
+                        </div>
+                        
+                        {(participant.earliestStartTime || participant.latestEndTime) && (
+                          <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {participant.earliestStartTime && (
+                              <span>Joined: {new Date(participant.earliestStartTime).toLocaleTimeString()}</span>
+                            )}
+                            {participant.earliestStartTime && participant.latestEndTime && <span> • </span>}
+                            {participant.latestEndTime && (
+                              <span>Left: {new Date(participant.latestEndTime).toLocaleTimeString()}</span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+    
     return (
       <Card className="h-full">
         <CardHeader>
