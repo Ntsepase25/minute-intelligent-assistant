@@ -34,11 +34,31 @@ import { toast } from "sonner";
 import TopComponent from "@/components/dashboard/recordingPage/topComponent";
 import BentoGrid from "@/components/mvpblocks/bento-grid-2";
 import { BentoGridLoadingSkeleton } from "@/components/dashboard/recordingPage/bentoGridSkeleton";
+import { useRecordings } from "@/hooks/useRecordings";
 
 const DashBoard = () => {
   const { data: session, isPending } = authClient.useSession();
-  const { recordings, loading, fetchRecordings } = useRecordingsStore();
+  const { selectedRecording, setSelectedRecording } = useRecordingsStore();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Use React Query for recordings data
+  const { 
+    data: recordings = [], 
+    isLoading: loadingRecordings, 
+    error: recordingsError,
+    refetch: refetchRecordings 
+  } = useRecordings();
+
+  // Set first recording as selected when data loads
+  useEffect(() => {
+    if (recordings.length > 0 && !selectedRecording) {
+      const firstRecording = recordings[0];
+      setSelectedRecording({
+        ...firstRecording,
+        title: firstRecording.title || firstRecording.meetingId || "Untitled Meeting",
+      });
+    }
+  }, [recordings, selectedRecording, setSelectedRecording]);
 
   useEffect(() => {
     const handleOnline = () => {
@@ -52,6 +72,9 @@ const DashBoard = () => {
           </AlertDescription>
         </Alert>
       ));
+      
+      // Refetch recordings when back online
+      refetchRecordings();
     };
 
     const handleOffline = () => {
@@ -61,7 +84,7 @@ const DashBoard = () => {
           <WifiOff />
           <AlertTitle>You are offline</AlertTitle>
           <AlertDescription>
-            Please check your internet connection.
+            Check your internet connection. Some features may not work.
           </AlertDescription>
         </Alert>
       ));
@@ -74,20 +97,29 @@ const DashBoard = () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
     };
-  }, []);
+  }, [refetchRecordings]);
 
+  // Show error if recordings failed to load
   useEffect(() => {
-    // console.log("Session data:", session);
-    if (!isPending && session) {
-      fetchRecordings().catch((error) => {
-        toast.error(
-          "Failed to fetch recordings. Please refresh page to try again."
-        );
-      });
+    if (recordingsError) {
+      console.error("Failed to fetch recordings:", recordingsError);
+      toast.error("Failed to load recordings. Please try again.");
     }
-  }, [session, isPending, fetchRecordings]);
+  }, [recordingsError]);
 
-  // console.log("recordings in useState: ", recordings)
+  if (!session && !isPending) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <Alert variant="destructive" className="w-full max-w-md">
+          <AlertCircleIcon className="h-4 w-4" />
+          <AlertTitle>Access Denied</AlertTitle>
+          <AlertDescription>
+            Please sign in to access the dashboard.
+          </AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider
@@ -101,7 +133,7 @@ const DashBoard = () => {
       <AppSidebar
         variant="inset"
         items={recordings}
-        loading={loading}
+        loading={loadingRecordings}
         isLoadingUser={isPending}
         user={session?.user}
       />
@@ -111,12 +143,12 @@ const DashBoard = () => {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="w-[90%] mx-auto">
-                <TopComponent loading={loading} />
+                <TopComponent loading={loadingRecordings} />
                 {/* <div className="w-full text-xl font-bold flex items-center gap-2">
                   <Pin color="#000000" className="h-4 w-4" />
                   Notes & Key Points
                 </div> */}
-                {loading ? <BentoGridLoadingSkeleton /> : <BentoGrid />}
+                {loadingRecordings ? <BentoGridLoadingSkeleton /> : <BentoGrid />}
               </div>
             </div>
           </div>

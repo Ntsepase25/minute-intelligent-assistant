@@ -34,13 +34,10 @@ export function NavMain({
   }[];
   loading?: boolean;
 }) {
-  const { selectedRecording, setSelectedRecording, recordings } = useRecordingsStore();
+  const { selectedRecording, setSelectedRecording } = useRecordingsStore();
   
-  // Override items with global store recordings if available
-  const navItems = items.map(item => ({
-    ...item,
-    items: item.title === "Recordings" && recordings.length > 0 ? recordings : item.items
-  }));
+  // Use the items passed from parent (which now come from React Query)
+  const navItems = items;
 
   // console.log("NavMain items: ", navItems);
   return (

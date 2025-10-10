@@ -7,181 +7,80 @@ import AudioPlayer from "./audioPlayer";
 import { AudioPlayerLoadingSkeleton } from "./audioPlayerSkeleton";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useRegenerateTranscript, useRegenerateSummary } from "@/hooks/useRecordings";
 
 type Props = {
   loading: boolean;
 };
 
 const TopComponent = ({ loading }: Props) => {
-  const { selectedRecording, setSelectedRecording, updateRecording } = useRecordingsStore();
-  const [regeneratingTranscript, setRegeneratingTranscript] = useState(false);
-  const [regeneratingSummary, setRegeneratingSummary] = useState(false);
+  const { selectedRecording, setSelectedRecording } = useRecordingsStore();
   const [fetchingGoogleMeetData, setFetchingGoogleMeetData] = useState(false);
+
+  // React Query mutations
+  const regenerateTranscriptMutation = useRegenerateTranscript();
+  const regenerateSummaryMutation = useRegenerateSummary();
 
   const handleRegenerateTranscript = async () => {
     if (!selectedRecording?.id) return;
 
-    setRegeneratingTranscript(true);
-    try {
-      // Step 1: Check if this is a Google Meet recording and try to fetch participant data
-      let shouldFetchGoogleMeetData = false;
-      if (selectedRecording.meetingPlatform === "google-meet" && 
-          selectedRecording.meetingId &&
-          (!selectedRecording.participants || selectedRecording.participants.length === 0)) {
-        shouldFetchGoogleMeetData = true;
-      }
+    // Step 1: Check if this is a Google Meet recording and try to fetch participant data
+    let shouldFetchGoogleMeetData = false;
+    if (selectedRecording.meetingPlatform === "google-meet" && 
+        selectedRecording.meetingId &&
+        (!selectedRecording.participants || selectedRecording.participants.length === 0)) {
+      shouldFetchGoogleMeetData = true;
+    }
 
-      if (shouldFetchGoogleMeetData) {
-        toast.loading("Fetching Google Meet participants and transcript...", { id: "transcript-regen" });
-        
-        try {
-          const googleMeetResponse = await fetch(
-            `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings/fetch-google-meet-data/${selectedRecording.id}`,
-            {
-              method: "POST",
-              credentials: "include",
-            }
-          );
-
-          if (googleMeetResponse.ok) {
-            const googleMeetData = await googleMeetResponse.json();
-            
-            // Update recording with Google Meet data
-            const updatedRecording = {
-              ...selectedRecording,
-              participants: googleMeetData.participants,
-              transcriptEntries: googleMeetData.transcriptEntries,
-            };
-            
-            setSelectedRecording(updatedRecording);
-            updateRecording(updatedRecording);
-            
-            if (!googleMeetData.alreadyExists) {
-              toast.success("Google Meet data fetched successfully", { id: "transcript-regen" });
-              
-              // Auto-regenerate summary with the new transcript
-              setRegeneratingSummary(true);
-              toast.loading("Auto-regenerating summary with speaker data...", { id: "summary-auto-regen" });
-              
-              try {
-                const summaryResponse = await fetch(
-                  `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings/regenerate-summary/${selectedRecording.id}`,
-                  {
-                    method: "POST",
-                    credentials: "include",
-                  }
-                );
-
-                if (summaryResponse.ok) {
-                  const summaryData = await summaryResponse.json();
-                  
-                  const finalUpdatedRecording = {
-                    ...updatedRecording,
-                    summary: typeof summaryData.summary === 'string' ? summaryData.summary : summaryData.summary?.minutes,
-                    title: typeof summaryData.summary === 'object' ? summaryData.summary?.title : updatedRecording.title,
-                    minutes: typeof summaryData.summary === 'object' ? summaryData.summary?.minutes : null,
-                    actionItems: typeof summaryData.summary === 'object' ? summaryData.summary?.actionItems : null,
-                    nextMeeting: typeof summaryData.summary === 'object' ? summaryData.summary?.nextMeeting : null,
-                    summaryData: typeof summaryData.summary === 'object' ? summaryData.summary : null,
-                  };
-                  
-                  setSelectedRecording(finalUpdatedRecording);
-                  updateRecording(finalUpdatedRecording);
-                  toast.success("Summary auto-regenerated with speaker context!", { id: "summary-auto-regen" });
-                }
-              } catch (summaryError) {
-                console.error("Error regenerating summary:", summaryError);
-                toast.error(`Failed to auto-regenerate summary: ${summaryError.message}`, { id: "summary-auto-regen" });
-              } finally {
-                setRegeneratingSummary(false);
-              }
-              
-              return; // Exit early since we successfully processed Google Meet data
-            }
-          }
-        } catch (googleMeetError) {
-          console.warn("Could not fetch Google Meet data, falling back to regular regeneration:", googleMeetError);
-        }
-      }
-
-      // Step 2: Regular transcript regeneration (fallback or for non-Google Meet recordings)
-      toast.loading("Regenerating transcript...", { id: "transcript-regen" });
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings/regenerate-transcript/${selectedRecording.id}`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || "Failed to regenerate transcript");
-      }
-
-      const data = await response.json();
-      
-      // Update the selected recording with new transcript
-      const updatedRecording = {
-        ...selectedRecording,
-        transcript: data.transcript,
-        // Update participants data if returned from regeneration
-        participants: data.hasParticipantData ? selectedRecording.participants : null,
-        transcriptEntries: data.hasParticipantData ? selectedRecording.transcriptEntries : null,
-      };
-      
-      setSelectedRecording(updatedRecording);
-      updateRecording(updatedRecording);
-      toast.success("Transcript regenerated successfully", { id: "transcript-regen" });
-      
-      // Step 3: Automatically regenerate summary
-      setRegeneratingSummary(true);
-      toast.loading("Auto-regenerating summary from new transcript...", { id: "summary-auto-regen" });
+    if (shouldFetchGoogleMeetData) {
+      setFetchingGoogleMeetData(true);
+      toast.loading("Fetching Google Meet participants and transcript...", { id: "transcript-regen" });
       
       try {
-        const summaryResponse = await fetch(
-          `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings/regenerate-summary/${selectedRecording.id}`,
+        const googleMeetResponse = await fetch(
+          `${(import.meta as any).env.VITE_BACKEND_BASE_URL}/recordings/fetch-google-meet-data/${selectedRecording.id}`,
           {
             method: "POST",
             credentials: "include",
           }
         );
 
-        if (!summaryResponse.ok) {
-          const errorData = await summaryResponse.json();
-          throw new Error(errorData.details || "Failed to regenerate summary");
+        if (googleMeetResponse.ok) {
+          const googleMeetData = await googleMeetResponse.json();
+          
+          // Update recording with Google Meet data in Zustand store
+          const updatedRecording = {
+            ...selectedRecording,
+            participants: googleMeetData.participants,
+            transcriptEntries: googleMeetData.transcriptEntries,
+          };
+          
+          setSelectedRecording(updatedRecording);
+          
+          if (!googleMeetData.alreadyExists) {
+            toast.success("Google Meet data fetched successfully", { id: "transcript-regen" });
+            
+            // Auto-regenerate summary with the new transcript data
+            regenerateSummaryMutation.mutate(selectedRecording.id);
+          }
+          
+          setFetchingGoogleMeetData(false);
+          return; // Exit early since we successfully processed Google Meet data
         }
-
-        const summaryData = await summaryResponse.json();
-        
-        // Update the selected recording with new summary data
-        const finalUpdatedRecording = {
-          ...updatedRecording,
-          summary: typeof summaryData.summary === 'string' ? summaryData.summary : summaryData.summary?.minutes,
-          title: typeof summaryData.summary === 'object' ? summaryData.summary?.title : updatedRecording.title,
-          minutes: typeof summaryData.summary === 'object' ? summaryData.summary?.minutes : null,
-          actionItems: typeof summaryData.summary === 'object' ? summaryData.summary?.actionItems : null,
-          nextMeeting: typeof summaryData.summary === 'object' ? summaryData.summary?.nextMeeting : null,
-          summaryData: typeof summaryData.summary === 'object' ? summaryData.summary : null,
-        };
-        
-        setSelectedRecording(finalUpdatedRecording);
-        updateRecording(finalUpdatedRecording);
-        toast.success("Summary auto-regenerated successfully!", { id: "summary-auto-regen" });
-      } catch (summaryError) {
-        console.error("Error regenerating summary:", summaryError);
-        toast.error(`Failed to auto-regenerate summary: ${summaryError.message}`, { id: "summary-auto-regen" });
+      } catch (googleMeetError) {
+        console.warn("Could not fetch Google Meet data, falling back to regular regeneration:", googleMeetError);
       } finally {
-        setRegeneratingSummary(false);
+        setFetchingGoogleMeetData(false);
       }
-      
-    } catch (error) {
-      console.error("Error regenerating transcript:", error);
-      toast.error(`Failed to regenerate transcript: ${error.message}`, { id: "transcript-regen" });
-    } finally {
-      setRegeneratingTranscript(false);
     }
+
+    // Step 2: Regular transcript regeneration (fallback or for non-Google Meet recordings)
+    regenerateTranscriptMutation.mutate(selectedRecording.id, {
+      onSuccess: () => {
+        // Auto-regenerate summary after transcript regeneration
+        regenerateSummaryMutation.mutate(selectedRecording.id);
+      }
+    });
   };
 
   const handleRegenerateSummary = async () => {
@@ -192,87 +91,48 @@ const TopComponent = ({ loading }: Props) => {
       return;
     }
 
-    setRegeneratingSummary(true);
-    try {
-      // Step 1: Check if this is a Google Meet recording and try to fetch participant data first
-      if (selectedRecording.meetingPlatform === "google-meet" && 
-          selectedRecording.meetingId &&
-          (!selectedRecording.participants || selectedRecording.participants.length === 0)) {
-        
-        toast.loading("Fetching Google Meet participants for better summary...", { id: "summary-regen" });
-        
-        try {
-          const googleMeetResponse = await fetch(
-            `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings/fetch-google-meet-data/${selectedRecording.id}`,
-            {
-              method: "POST",
-              credentials: "include",
-            }
-          );
-
-          if (googleMeetResponse.ok) {
-            const googleMeetData = await googleMeetResponse.json();
-            
-            // Update recording with Google Meet data
-            const updatedRecording = {
-              ...selectedRecording,
-              participants: googleMeetData.participants,
-              transcriptEntries: googleMeetData.transcriptEntries,
-            };
-            
-            setSelectedRecording(updatedRecording);
-            updateRecording(updatedRecording);
-            
-            if (!googleMeetData.alreadyExists) {
-              toast.success("Google Meet data fetched successfully", { id: "summary-regen" });
-            }
+    // Step 1: Check if this is a Google Meet recording and try to fetch participant data first
+    if (selectedRecording.meetingPlatform === "google-meet" && 
+        selectedRecording.meetingId &&
+        (!selectedRecording.participants || selectedRecording.participants.length === 0)) {
+      
+      setFetchingGoogleMeetData(true);
+      toast.loading("Fetching Google Meet participants for better summary...", { id: "summary-regen" });
+      
+      try {
+        const googleMeetResponse = await fetch(
+          `${(import.meta as any).env.VITE_BACKEND_BASE_URL}/recordings/fetch-google-meet-data/${selectedRecording.id}`,
+          {
+            method: "POST",
+            credentials: "include",
           }
-        } catch (googleMeetError) {
-          console.warn("Could not fetch Google Meet data, proceeding with regular summary:", googleMeetError);
+        );
+
+        if (googleMeetResponse.ok) {
+          const googleMeetData = await googleMeetResponse.json();
+          
+          // Update recording with Google Meet data
+          const updatedRecording = {
+            ...selectedRecording,
+            participants: googleMeetData.participants,
+            transcriptEntries: googleMeetData.transcriptEntries,
+          };
+          
+          setSelectedRecording(updatedRecording);
+          
+          if (!googleMeetData.alreadyExists) {
+            toast.success("Google Meet data fetched successfully", { id: "summary-regen" });
+          }
         }
+      } catch (googleMeetError) {
+        console.warn("Could not fetch Google Meet data, proceeding with regular summary:", googleMeetError);
+      } finally {
+        setFetchingGoogleMeetData(false);
       }
-
-      // Step 2: Regular summary regeneration
-      toast.loading("Regenerating summary...", { id: "summary-regen" });
-      
-      const response = await fetch(
-        `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings/regenerate-summary/${selectedRecording.id}`,
-        {
-          method: "POST",
-          credentials: "include",
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.details || "Failed to regenerate summary");
-      }
-
-      const data = await response.json();
-      
-      // Update the selected recording with new summary data
-      const updatedRecording = {
-        ...selectedRecording,
-        summary: typeof data.summary === 'string' ? data.summary : data.summary?.minutes,
-        title: typeof data.summary === 'object' ? data.summary?.title : selectedRecording.title,
-        minutes: typeof data.summary === 'object' ? data.summary?.minutes : null,
-        actionItems: typeof data.summary === 'object' ? data.summary?.actionItems : null,
-        nextMeeting: typeof data.summary === 'object' ? data.summary?.nextMeeting : null,
-        summaryData: typeof data.summary === 'object' ? data.summary : null,
-        // Preserve any participant data we might have fetched
-        participants: selectedRecording.participants,
-        transcriptEntries: selectedRecording.transcriptEntries,
-      };
-      
-      setSelectedRecording(updatedRecording);
-      updateRecording(updatedRecording);
-      toast.success("Summary regenerated successfully", { id: "summary-regen" });
-    } catch (error) {
-      console.error("Error regenerating summary:", error);
-      toast.error(`Failed to regenerate summary: ${error.message}`, { id: "summary-regen" });
-    } finally {
-      setRegeneratingSummary(false);
     }
+
+    // Step 2: Regular summary regeneration using React Query
+    regenerateSummaryMutation.mutate(selectedRecording.id);
   };
 
   const handleFetchGoogleMeetData = async () => {
@@ -293,7 +153,7 @@ const TopComponent = ({ loading }: Props) => {
       toast.loading("Fetching Google Meet participants and transcript...", { id: "google-meet-fetch" });
       
       const googleMeetResponse = await fetch(
-        `${import.meta.env.VITE_BACKEND_BASE_URL}/recordings/fetch-google-meet-data/${selectedRecording.id}`,
+        `${(import.meta as any).env.VITE_BACKEND_BASE_URL}/recordings/fetch-google-meet-data/${selectedRecording.id}`,
         {
           method: "POST",
           credentials: "include",
@@ -328,7 +188,6 @@ const TopComponent = ({ loading }: Props) => {
       };
       
       setSelectedRecording(updatedRecording);
-      updateRecording(updatedRecording);
       
       if (googleMeetData.alreadyExists) {
         toast.success("Google Meet data loaded successfully", { id: "google-meet-fetch" });
@@ -408,7 +267,7 @@ const TopComponent = ({ loading }: Props) => {
                 variant="outline" 
                 size="sm"
                 onClick={handleFetchGoogleMeetData}
-                disabled={fetchingGoogleMeetData || regeneratingTranscript || regeneratingSummary || !selectedRecording?.id}
+                disabled={fetchingGoogleMeetData || regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || !selectedRecording?.id}
               >
                 {fetchingGoogleMeetData ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -435,18 +294,18 @@ const TopComponent = ({ loading }: Props) => {
               variant="outline" 
               size="sm"
               onClick={handleRegenerateTranscript}
-              disabled={regeneratingTranscript || regeneratingSummary || !selectedRecording?.id}
+              disabled={regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || !selectedRecording?.id}
             >
-              {regeneratingTranscript ? (
+              {regenerateTranscriptMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <FileText className="h-4 w-4" />
               )}
               <span className="hidden lg:inline">
-                {regeneratingTranscript || regeneratingSummary ? "Regenerating..." : "Regenerate Transcript & Summary"}
+                {regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending ? "Regenerating..." : "Regenerate Transcript & Summary"}
               </span>
               <span className="lg:hidden">
-                {regeneratingTranscript || regeneratingSummary ? "Working..." : "Transcript"}
+                {regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending ? "Working..." : "Transcript"}
               </span>
             </Button>
           </TooltipTrigger>
@@ -460,18 +319,18 @@ const TopComponent = ({ loading }: Props) => {
               variant="outline" 
               size="sm"
               onClick={handleRegenerateSummary}
-              disabled={regeneratingSummary || regeneratingTranscript || !selectedRecording?.id || !selectedRecording?.transcript}
+              disabled={regenerateSummaryMutation.isPending || regenerateTranscriptMutation.isPending || !selectedRecording?.id || !selectedRecording?.transcript}
             >
-              {regeneratingSummary ? (
+              {regenerateSummaryMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
               <span className="hidden lg:inline">
-                {regeneratingSummary ? "Regenerating..." : "Regenerate Summary"}
+                {regenerateSummaryMutation.isPending ? "Regenerating..." : "Regenerate Summary"}
               </span>
               <span className="lg:hidden">
-                {regeneratingSummary ? "Working..." : "Summary"}
+                {regenerateSummaryMutation.isPending ? "Working..." : "Summary"}
               </span>
             </Button>
           </TooltipTrigger>
