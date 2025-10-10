@@ -15,7 +15,7 @@ const app = express();
 // Enable CORS with credentials support
 app.use(
   cors({
-    origin: process.env.FRONTEND_BASE_URL, // Frontend URL
+    origin: process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app/", // Frontend URL
     credentials: true, // Allow credentials (cookies, auth headers)
   })
 );
