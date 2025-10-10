@@ -7,7 +7,7 @@ dotenv.config();
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
-    provider: "postgresql", // or "mysql", "postgresql", ...etc
+    provider: "postgresql",
   }),
   secret: process.env.BETTER_AUTH_SECRET!,
   baseURL:
@@ -15,7 +15,6 @@ export const auth = betterAuth({
     "https://minute-intelligent-assistant.onrender.com",
   basePath: "/api/auth",
   
-  // Configure trusted origins FIRST
   trustedOrigins: [
     "http://localhost:5173",
     "http://localhost:8080", 
@@ -43,16 +42,16 @@ export const auth = betterAuth({
       enabled: true,
       maxAge: 60 * 60 * 24 * 7, // 7 days
     },
-    cookie: {
-      sameSite: "none", // Required for cross-site cookies
-      secure: true, // Required when sameSite is "none"
+  },
+
+  advanced: {
+    useSecureCookies: true,
+    // Default attributes apply to ALL cookies
+    defaultCookieAttributes: {
+      sameSite: "none", // Required for cross-origin cookies
+      secure: true,
       httpOnly: true,
       path: "/",
     },
-  },
-
-  // Configure for production
-  advanced: {
-    useSecureCookies: true,
   },
 });
