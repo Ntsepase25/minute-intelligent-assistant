@@ -45,7 +45,7 @@ export const auth = betterAuth({
   },
 
   advanced: {
-    useSecureCookies: true, // Set to false for local development over HTTP
+    useSecureCookies: false, // Set to false for local development over HTTP
     // Default attributes apply to ALL cookies
     defaultCookieAttributes: {
       sameSite: "none", // Required for cross-origin cookies

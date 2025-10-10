@@ -42,11 +42,11 @@ const DashBoard = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   // Use React Query for recordings data
-  const { 
-    data: recordings = [], 
-    isLoading: loadingRecordings, 
+  const {
+    data: recordings = [],
+    isLoading: loadingRecordings,
     error: recordingsError,
-    refetch: refetchRecordings 
+    refetch: refetchRecordings,
   } = useRecordings();
 
   // Set first recording as selected when data loads
@@ -55,7 +55,10 @@ const DashBoard = () => {
       const firstRecording = recordings[0];
       setSelectedRecording({
         ...firstRecording,
-        title: firstRecording.title || firstRecording.meetingId || "Untitled Meeting",
+        title:
+          firstRecording.title ||
+          firstRecording.meetingId ||
+          "Untitled Meeting",
       });
     }
   }, [recordings, selectedRecording, setSelectedRecording]);
@@ -72,7 +75,7 @@ const DashBoard = () => {
           </AlertDescription>
         </Alert>
       ));
-      
+
       // Refetch recordings when back online
       refetchRecordings();
     };
@@ -108,13 +111,14 @@ const DashBoard = () => {
   }, [recordingsError]);
 
   if (!session && !isPending) {
+    window.location.href = "/login";
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Alert variant="destructive" className="w-full max-w-md">
           <AlertCircleIcon className="h-4 w-4" />
           <AlertTitle>Access Denied</AlertTitle>
           <AlertDescription>
-            Please sign in to access the dashboard.
+            Please sign in to access the dashboard. Redirecting to login page...
           </AlertDescription>
         </Alert>
       </div>
@@ -136,6 +140,12 @@ const DashBoard = () => {
         loading={loadingRecordings}
         isLoadingUser={isPending}
         user={session?.user}
+        onUploadComplete={() => {
+          refetchRecordings();
+          toast.success("Recording uploaded!", {
+            description: "Your recording has been uploaded and is being processed.",
+          });
+        }}
       />
       <SidebarInset>
         <SiteHeader />
@@ -148,7 +158,11 @@ const DashBoard = () => {
                   <Pin color="#000000" className="h-4 w-4" />
                   Notes & Key Points
                 </div> */}
-                {loadingRecordings ? <BentoGridLoadingSkeleton /> : <BentoGrid />}
+                {loadingRecordings ? (
+                  <BentoGridLoadingSkeleton />
+                ) : (
+                  <BentoGrid />
+                )}
               </div>
             </div>
           </div>

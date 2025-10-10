@@ -1,4 +1,5 @@
 import * as React from "react";
+import { useState } from "react";
 import {
   IconCamera,
   IconChartBar,
@@ -33,12 +34,15 @@ import {
 import {
   BookOpen,
   Bot,
+  CloudUpload,
   DiscAlbum,
   Settings2,
   SquareTerminal,
 } from "lucide-react";
 import { User } from "better-auth/*";
 import { recording, sidebarItem } from "@/lib/types";
+import { Button } from "./ui/button";
+import { UploadRecordingDialog } from "./upload-recording-dialog";
 
 const data = {
   user: {
@@ -162,15 +166,22 @@ export function AppSidebar({
   loading,
   isLoadingUser,
   user,
+  onUploadComplete,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
   items?: recording[];
   loading?: boolean;
   isLoadingUser: boolean;
   user: User | null;
+  onUploadComplete?: () => void;
 }) {
+  const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const sidebarData = items || [];
   data.navMain[0].items = sidebarData;
+
+  const handleUploadComplete = () => {
+    onUploadComplete?.();
+  };
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
@@ -190,6 +201,15 @@ export function AppSidebar({
         </SidebarMenu>
       </SidebarHeader>
       <SidebarContent>
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="mt-4 shadow-none mx-2"
+          onClick={() => setUploadDialogOpen(true)}
+        >
+          <CloudUpload className="h-4 w-4" />
+          Upload New Recording
+        </Button>
         <NavMain items={data.navMain} loading={loading} />
         {/* <NavDocuments items={data.documents} /> */}
         <NavSecondary items={data.navSecondary} className="mt-auto" />
@@ -197,6 +217,12 @@ export function AppSidebar({
       <SidebarFooter>
         <NavUser user={user} loading={isLoadingUser} />
       </SidebarFooter>
+      
+      <UploadRecordingDialog 
+        open={uploadDialogOpen}
+        onOpenChange={setUploadDialogOpen}
+        onUploadComplete={handleUploadComplete}
+      />
     </Sidebar>
   );
 }
