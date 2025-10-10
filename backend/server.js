@@ -22,6 +22,9 @@ app.use(
       "http://localhost:8080"  // Local backend
     ],
     credentials: true, // Allow credentials (cookies, auth headers)
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
+    exposedHeaders: ["Set-Cookie"],
   })
 );
 
@@ -35,7 +38,7 @@ app.use(
 
 const PORT = process.env.PORT || 3000;
 
-app.use("/api/auth/*splat", (req, res, next) => {
+app.all("/api/auth/*splat", async (req, res, next) => {
   console.log("Auth request:", {
     method: req.method,
     url: req.url,
@@ -43,6 +46,19 @@ app.use("/api/auth/*splat", (req, res, next) => {
     cookies: req.headers.cookie,
     userAgent: req.headers['user-agent']
   });
+
+  // Try to get session if this is a get-session request
+  if (req.url === '/get-session' || req.url === '/session') {
+    try {
+      const session = await auth.api.getSession({
+        headers: req.headers,
+      });
+      console.log("Manual session check result:", session ? "SUCCESS" : "NULL");
+    } catch (error) {
+      console.log("Manual session check error:", error.message);
+    }
+  }
+
   next();
 }, toNodeHandler(auth));
 
@@ -51,6 +67,32 @@ app.use("/api/auth/*splat", (req, res, next) => {
 app.use(express.json());
 
 app.use("/recordings", recordingsRouter);
+
+// Test endpoint to check cookie handling
+app.get("/test-cookies", async (req, res) => {
+  console.log("Test cookies endpoint:");
+  console.log("Headers:", req.headers);
+  console.log("Cookies:", req.headers.cookie);
+  
+  try {
+    const session = await auth.api.getSession({
+      headers: req.headers,
+    });
+    console.log("Session result:", session ? "SUCCESS" : "NULL");
+    res.json({ 
+      cookiesReceived: !!req.headers.cookie,
+      sessionFound: !!session,
+      session: session?.user?.email || null
+    });
+  } catch (error) {
+    console.log("Session error:", error.message);
+    res.json({ 
+      cookiesReceived: !!req.headers.cookie,
+      sessionFound: false,
+      error: error.message
+    });
+  }
+});
 
 app.get("/", (req, res) => {
   res.redirect(`${process.env.FRONTEND_BASE_URL || "http://localhost:5173"}/dashboard`);
