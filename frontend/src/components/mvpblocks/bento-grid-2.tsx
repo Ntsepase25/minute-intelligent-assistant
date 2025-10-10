@@ -1,7 +1,4 @@
 "use client";
-
-import * as React from "react";
-import { cn } from "@/lib/utils";
 import { Pin } from "lucide-react";
 import { useRecordingsStore } from "@/stores/recordingsStore";
 import MeetingSummary from "@/components/dashboard/MeetingSummary";
