@@ -14,6 +14,11 @@ export const auth = betterAuth({
       clientId: process.env.GOOGLE_CLIENT_ID || "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
       prompt: "select_account",
+      accessType: "offline",
+      scope: [
+        "https://www.googleapis.com/auth/meetings.space.settings",
+        "https://www.googleapis.com/auth/meetings.space.readonly"
+      ],
     },
   },
   trustedOrigins: ["http://localhost:5173", "http://localhost:8080"],

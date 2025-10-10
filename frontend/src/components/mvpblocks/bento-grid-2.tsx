@@ -1,13 +1,11 @@
 "use client";
-
-import * as React from "react";
-import { cn } from "@/lib/utils";
 import { Pin } from "lucide-react";
 import { useRecordingsStore } from "@/stores/recordingsStore";
 import MeetingSummary from "@/components/dashboard/MeetingSummary";
 import ActionItems from "@/components/dashboard/ActionItems";
 import NextMeeting from "@/components/dashboard/NextMeeting";
 import Transcript from "@/components/dashboard/Transcript";
+import TranscriptWithSpeakers from "@/components/dashboard/TranscriptWithSpeakers";
 
 export default function BentoGrid() {
   const { selectedRecording } = useRecordingsStore();
@@ -41,9 +39,9 @@ export default function BentoGrid() {
       <div className="bg-primary/5 absolute top-20 -left-20 h-64 w-64 rounded-full blur-3xl" />
       <div className="bg-primary/5 absolute -right-20 bottom-20 h-64 w-64 rounded-full blur-3xl" />
 
-      <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 md:grid-cols-3">
-        {/* Meeting Summary - Takes 2 columns */}
-        <div className="col-span-1 md:col-span-2 min-h-60">
+      <div className="relative mx-auto grid max-w-6xl grid-cols-1 gap-4 p-4 lg:grid-cols-3">
+        {/* Meeting Summary - Takes full width on mobile/tablet, 2 cols on desktop */}
+        <div className="col-span-1 lg:col-span-2 min-h-60">
           <MeetingSummary
             title={selectedRecording.title}
             minutes={selectedRecording.minutes}
@@ -52,18 +50,32 @@ export default function BentoGrid() {
           />
         </div>
 
-        {/* Action Items */}
+        {/* Action Items - Full width on mobile/tablet, 1 col on desktop */}
         <div className="col-span-1 min-h-60">
           <ActionItems actionItems={selectedRecording.actionItems} />
         </div>
 
-        {/* Next Meeting */}
+        {/* Next Meeting - Full width on mobile/tablet, 1 col on desktop */}
         <div className="col-span-1 min-h-60">
           <NextMeeting nextMeeting={selectedRecording.nextMeeting} />
         </div>
 
-        {/* Transcript - Takes 2 columns */}
-        <div className="col-span-1 md:col-span-2 min-h-60">
+        {/* Transcript - Full width on mobile/tablet, 2 cols on desktop */}
+        <div className="col-span-1 lg:col-span-2 min-h-60">
+          {selectedRecording.meetingPlatform === "google-meet" ? (
+            <TranscriptWithSpeakers 
+              transcriptEntries={selectedRecording.transcriptEntries}
+              participants={selectedRecording.participants}
+              meetingId={selectedRecording.meetingId}
+              googleMeetError={!selectedRecording.transcriptEntries && !selectedRecording.participants}
+            />
+          ) : (
+            <Transcript transcript={selectedRecording.transcript} />
+          )}
+        </div>
+
+        {/* Regular Transcript - Full width on mobile/tablet, 3 cols on desktop */}
+        <div className="col-span-1 lg:col-span-3 min-h-60">
           <Transcript transcript={selectedRecording.transcript} />
         </div>
       </div>
