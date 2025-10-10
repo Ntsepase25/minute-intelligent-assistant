@@ -1,5 +1,5 @@
 import type { User } from "better-auth";
-import { prisma } from "../lib/prisma.ts";
+import { prisma } from "../lib/prisma.js";
 
 export const createRecording = async (
   fileUrl: string | null,

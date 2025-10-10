@@ -1,5 +1,5 @@
-import { auth } from "../lib/auth.ts";
-import { prisma } from "../lib/prisma.ts";
+import { auth } from "../lib/auth.js";
+import { prisma } from "../lib/prisma.js";
 
 interface GoogleMeetConferenceRecord {
   name: string;

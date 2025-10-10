@@ -7,13 +7,13 @@ import { Readable } from "node:stream";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegStatic from "ffmpeg-static";
 import { UTApi, UTFile } from "uploadthing/server"; // server SDK
-import { auth } from "../lib/auth.ts";
-import { prisma } from "../lib/prisma.ts";
-import { createRecording } from "../contollers/recordings.controller.ts";
-import { convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
-// import { transcribeFromLocalPath, convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.ts";
-import { regenerateTranscript, regenerateSummary } from "../helpers/transcriptionHelpers.ts";
-import { processGoogleMeetRecording } from "../helpers/googleMeetHelpers.ts";
+import { auth } from "../lib/auth.js";
+import { prisma } from "../lib/prisma.js";
+import { createRecording } from "../contollers/recordings.controller.js";
+import { convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.js";
+// import { transcribeFromLocalPath, convertToWavOnDisk, transcribeFromAssemblyAI, googleSttTranscribe } from "../helpers/transcriptionHelpers.js";
+import { regenerateTranscript, regenerateSummary } from "../helpers/transcriptionHelpers.js";
+import { processGoogleMeetRecording } from "../helpers/googleMeetHelpers.js";
 
 import { fromNodeHeaders } from "better-auth/node";
 
@@ -894,7 +894,7 @@ recordingsRouter.get("/debug/google-meet-conferences", async (req, res) => {
     if (!userSession)
       return res.status(401).json({ message: "User not logged in" });
 
-    const { getGoogleAccessToken } = await import("../helpers/googleMeetHelpers.ts");
+    const { getGoogleAccessToken } = await import("../helpers/googleMeetHelpers.js");
     
     // Get user's Google access token
     const account = await prisma.account.findFirst({
@@ -955,7 +955,7 @@ recordingsRouter.get("/debug/google-meet-space/:meetingCode", async (req, res) =
     
     console.log(`🟢 [API] Debug: Getting space details for meeting code: ${meetingCode}`);
     
-    const { getGoogleMeetSpaceDetails } = await import("../helpers/googleMeetHelpers.ts");
+    const { getGoogleMeetSpaceDetails } = await import("../helpers/googleMeetHelpers.js");
     const spaceDetails = await getGoogleMeetSpaceDetails(meetingCode, userSession.user.id);
     
     return res.status(200).json({

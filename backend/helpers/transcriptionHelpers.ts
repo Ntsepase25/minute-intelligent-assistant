@@ -1,5 +1,5 @@
 import speech from "@google-cloud/speech";
-import { prisma } from "../lib/prisma.ts";
+import { prisma } from "../lib/prisma.js";
 import { GoogleGenAI } from "@google/genai";
 // import { whisper } from "whisper-node";
 import ffmpeg from "fluent-ffmpeg";
@@ -59,7 +59,7 @@ export const googleSttTranscribe = async (
   return operation;
 };
 
-export async function generateSummary(transcript) {
+export async function generateSummary(transcript: string) {
   console.log("🤖 [SUMMARY] Starting comprehensive summary generation...");
   console.log(
     "🤖 [SUMMARY] Transcript length:",
@@ -316,7 +316,7 @@ ${transcript}`;
 // }
 
 // Convert any uploaded file on disk to a 16kHz mono WAV on disk (returns wav path)
-export async function convertToWavOnDisk(inputPath) {
+export async function convertToWavOnDisk(inputPath: string) {
   const id = Date.now() + "-" + Math.floor(Math.random() * 1e6);
   const outName = `conv-${id}.wav`;
   const outPath = path.join(tmpDir, outName);

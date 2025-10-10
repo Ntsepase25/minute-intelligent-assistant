@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
-import { prisma } from "./prisma.ts";
+import { prisma } from "./prisma.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -21,5 +21,5 @@ export const auth = betterAuth({
       ],
     },
   },
-  trustedOrigins: ["http://localhost:5173", "http://localhost:8080"],
+  trustedOrigins: ["http://localhost:5173", "http://localhost:8080", "https://minute-intelligent-assistant.onrender.com", process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app/"], // Add your frontend URL here
 });

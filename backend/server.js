@@ -1,11 +1,11 @@
 import express from "express";
 import { toNodeHandler } from "better-auth/node";
-import { auth } from "./lib/auth.ts";
+import { auth } from "./lib/auth.js";
 import cors from "cors";
 import recordingsRouter from "./routes/recordings.js";
 import { createRouteHandler } from "uploadthing/express";
 
-import { uploadRouter } from "./uploadthing.ts";
+import { uploadRouter } from "./uploadthing.js";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -15,7 +15,7 @@ const app = express();
 // Enable CORS with credentials support
 app.use(
   cors({
-    origin: "http://localhost:5173", // Frontend URL
+    origin: process.env.FRONTEND_BASE_URL, // Frontend URL
     credentials: true, // Allow credentials (cookies, auth headers)
   })
 );

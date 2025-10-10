@@ -6,8 +6,9 @@
   "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "prisma generate && node server.js",
-    "dev": "node --watch server.js"
+    "build": "tsc",
+    "start": "prisma generate && npm run build && node dist/server.js",
+    "dev": "tsc && node --watch dist/server.js"
   },
   "author": "",
   "license": "ISC",
@@ -29,6 +30,7 @@
     "whisper-node": "^1.1.1"
   },
   "devDependencies": {
+    "@types/fluent-ffmpeg": "^2.1.27",
     "@types/node": "^24.6.2",
     "ts-node": "^10.9.2",
     "typescript": "^5.9.3"
