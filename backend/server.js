@@ -15,7 +15,12 @@ const app = express();
 // Enable CORS with credentials support
 app.use(
   cors({
-    origin: process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app", // Frontend URL
+    origin: [
+      process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app",
+      "https://minute-intelligent-assistant.onrender.com", // Allow direct backend access
+      "http://localhost:5173", // Local development
+      "http://localhost:8080"  // Local backend
+    ],
     credentials: true, // Allow credentials (cookies, auth headers)
   })
 );
@@ -30,7 +35,7 @@ app.use(
 
 const PORT = process.env.PORT || 3000;
 
-app.use("/api/auth/{*any}", (req, res, next) => {
+app.use("/api/auth/*splat", (req, res, next) => {
   console.log("Auth request:", {
     method: req.method,
     url: req.url,

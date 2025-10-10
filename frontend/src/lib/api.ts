@@ -1,6 +1,6 @@
 import { recording } from "./types";
 
-const BASE_URL = (import.meta as any).env.VITE_BACKEND_BASE_URL;
+const BASE_URL = "https://minute-intelligent-assistant.onrender.com";
 
 export class ApiError extends Error {
   status: number;
