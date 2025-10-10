@@ -30,20 +30,10 @@ export const auth = betterAuth({
       maxAge: 60 * 60 * 24 * 7, // 7 days
     },
   },
-  cookies: {
-    sessionToken: {
-      name: "better-auth.session_token",
-      httpOnly: true,
-      secure: true, // Always secure in production
+  advanced: {
+    useSecureCookies: true,
+    defaultCookieAttributes: {
       sameSite: "none", // Critical for cross-domain
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    },
-    sessionData: {
-      name: "better-auth.session_data",
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 60 * 60 * 24 * 7,
     },
   },
   trustedOrigins: [
