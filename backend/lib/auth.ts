@@ -21,5 +21,20 @@ export const auth = betterAuth({
       ],
     },
   },
+  session: {
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    },
+  },
+  cookies: {
+    sessionToken: {
+      name: "session",
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // HTTPS only in prod
+      sameSite: "none", // Required for cross-domain
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+    },
+  },
   trustedOrigins: ["http://localhost:5173", "http://localhost:8080", "https://minute-intelligent-assistant.onrender.com", process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app"], // Add your frontend URL here
 });
