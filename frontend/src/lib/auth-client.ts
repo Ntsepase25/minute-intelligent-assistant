@@ -1,21 +1,9 @@
 import { createAuthClient } from "better-auth/react";
-
-// Always use same domain in production (proxied through Vercel)
-const getBaseURL = () => {
-  // In production (deployed on Vercel), use the same domain
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    console.log('Using proxy baseURL:', window.location.origin);
-    return window.location.origin;
-  }
-  // In development, use direct backend URL
-  console.log('Using development baseURL: http://localhost:8080');
-  return "http://localhost:8080";
-};
-
 export const authClient = createAuthClient({
-  baseURL: getBaseURL(),
+  /** The base URL of the server (optional if you're using the same domain) */
+   baseURL: `${import.meta.env.VITE_BACKEND_BASE_URL || "http://localhost:8080"}/api/auth`, // Your backend URL with auth path
   fetchOptions: {
-    credentials: "include", // Always include cookies
+    credentials: "include", // Ensure cookies are sent
   },
 });
 
