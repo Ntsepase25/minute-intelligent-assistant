@@ -43,16 +43,16 @@ export const auth = betterAuth({
       enabled: true,
       maxAge: 60 * 60 * 24 * 7, // 7 days
     },
-  },
-
-  // Configure cookies for cross-origin (render.com -> vercel.app)
-  advanced: {
-    useSecureCookies: true,
-    cookieOptions: {
+    cookie: {
       sameSite: "none", // Required for cross-site cookies
       secure: true, // Required when sameSite is "none"
       httpOnly: true,
       path: "/",
     },
+  },
+
+  // Configure for production
+  advanced: {
+    useSecureCookies: true,
   },
 });
