@@ -158,13 +158,16 @@ export function useRegenerateTranscript() {
       });
       
       // Also update the recording in the recordings list
-      queryClient.setQueryData(queryKeys.recordings, (old: recording[] | undefined) => {
-        if (!old) return old;
-        return old.map(recording => 
-          recording.id === recordingId 
-            ? { ...recording, transcript: data.transcript }
-            : recording
-        );
+      queryClient.setQueryData(queryKeys.recordings, (old: { recordings: recording[] } | undefined) => {
+        if (!old || !old.recordings) return old;
+        return {
+          ...old,
+          recordings: old.recordings.map(recording => 
+            recording.id === recordingId 
+              ? { ...recording, transcript: data.transcript }
+              : recording
+          )
+        };
       });
       
       toast.success('Transcript regenerated successfully!');
@@ -230,13 +233,16 @@ export function useRegenerateSummary() {
       });
       
       // Also update the recording in the recordings list
-      queryClient.setQueryData(queryKeys.recordings, (old: recording[] | undefined) => {
-        if (!old) return old;
-        return old.map(recording => 
-          recording.id === recordingId 
-            ? { ...recording, summary: data.summary }
-            : recording
-        );
+      queryClient.setQueryData(queryKeys.recordings, (old: { recordings: recording[] } | undefined) => {
+        if (!old || !old.recordings) return old;
+        return {
+          ...old,
+          recordings: old.recordings.map(recording => 
+            recording.id === recordingId 
+              ? { ...recording, summary: data.summary }
+              : recording
+          )
+        };
       });
       
       toast.success('Summary regenerated successfully!');
@@ -255,7 +261,7 @@ export function useRegenerateSummary() {
 }
 
 /**
- * Hook to delete a recording (if you implement the endpoint)
+ * Hook to delete a recording
  */
 export function useDeleteRecording() {
   const queryClient = useQueryClient();
@@ -271,9 +277,14 @@ export function useDeleteRecording() {
       const previousRecordings = queryClient.getQueryData(queryKeys.recordings);
       
       // Optimistically remove from recordings list
-      queryClient.setQueryData(queryKeys.recordings, (old: recording[] | undefined) => {
-        if (!old) return old;
-        return old.filter(recording => recording.id !== recordingId);
+      // Note: The recordings query uses select to extract just the array, 
+      // but the raw data is { recordings: recording[] }
+      queryClient.setQueryData(queryKeys.recordings, (old: { recordings: recording[] } | undefined) => {
+        if (!old || !old.recordings) return old;
+        return {
+          ...old,
+          recordings: old.recordings.filter(recording => recording.id !== recordingId)
+        };
       });
       
       return { previousRecordings };

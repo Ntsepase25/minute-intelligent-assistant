@@ -7,19 +7,22 @@ import AudioPlayer from "./audioPlayer";
 import { AudioPlayerLoadingSkeleton } from "./audioPlayerSkeleton";
 import { useState } from "react";
 import { toast } from "sonner";
-import { useRegenerateTranscript, useRegenerateSummary } from "@/hooks/useRecordings";
+import { useRegenerateTranscript, useRegenerateSummary, useDeleteRecording } from "@/hooks/useRecordings";
+import { DeleteRecordingDialog } from "./deleteRecordingDialog";
 
 type Props = {
   loading: boolean;
 };
 
 const TopComponent = ({ loading }: Props) => {
-  const { selectedRecording, setSelectedRecording } = useRecordingsStore();
+  const { selectedRecording, setSelectedRecording, clearSelectedRecording } = useRecordingsStore();
   const [fetchingGoogleMeetData, setFetchingGoogleMeetData] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   // React Query mutations
   const regenerateTranscriptMutation = useRegenerateTranscript();
   const regenerateSummaryMutation = useRegenerateSummary();
+  const deleteRecordingMutation = useDeleteRecording();
 
   const handleRegenerateTranscript = async () => {
     if (!selectedRecording?.id) return;
@@ -34,7 +37,7 @@ const TopComponent = ({ loading }: Props) => {
 
     if (shouldFetchGoogleMeetData) {
       setFetchingGoogleMeetData(true);
-      toast.loading("Fetching Google Meet participants and transcript...", { id: "transcript-regen" });
+      toast.loading("Trying to fetch Google Meet participants and transcript...", { id: "transcript-regen" });
       
       try {
         const googleMeetResponse = await fetch(
@@ -58,7 +61,7 @@ const TopComponent = ({ loading }: Props) => {
           setSelectedRecording(updatedRecording);
           
           if (!googleMeetData.alreadyExists) {
-            toast.success("Google Meet data fetched successfully", { id: "transcript-regen" });
+            toast.success(googleMeetData.message, { id: "transcript-regen" });
             
             // Auto-regenerate summary with the new transcript data
             regenerateSummaryMutation.mutate(selectedRecording.id);
@@ -97,7 +100,7 @@ const TopComponent = ({ loading }: Props) => {
         (!selectedRecording.participants || selectedRecording.participants.length === 0)) {
       
       setFetchingGoogleMeetData(true);
-      toast.loading("Fetching Google Meet participants for better summary...", { id: "summary-regen" });
+      toast.loading("Trying to fetch Google Meet participants for better summary...", { id: "summary-regen" });
       
       try {
         const googleMeetResponse = await fetch(
@@ -118,10 +121,11 @@ const TopComponent = ({ loading }: Props) => {
             transcriptEntries: googleMeetData.transcriptEntries,
           };
           
+          // console.log("Fetched Google Meet data for summary regeneration:", googleMeetData);
           setSelectedRecording(updatedRecording);
           
           if (!googleMeetData.alreadyExists) {
-            toast.success("Google Meet data fetched successfully", { id: "summary-regen" });
+            toast.success(googleMeetData.message, { id: "summary-regen" });
           }
         }
       } catch (googleMeetError) {
@@ -249,6 +253,19 @@ const TopComponent = ({ loading }: Props) => {
     }
   };
 
+  const handleDeleteRecording = () => {
+    if (!selectedRecording?.id) return;
+    
+    deleteRecordingMutation.mutate(selectedRecording.id, {
+      onSuccess: () => {
+        // Clear the selected recording from Zustand store
+        clearSelectedRecording();
+        // Close the dialog
+        setShowDeleteDialog(false);
+      }
+    });
+  };
+
   return (
     <div className="flex lg:flex-row flex-col gap-2 justify-between mx-2">
       <div>
@@ -294,7 +311,7 @@ const TopComponent = ({ loading }: Props) => {
               variant="outline" 
               size="sm"
               onClick={handleRegenerateTranscript}
-              disabled={regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || !selectedRecording?.id}
+              disabled={regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || !selectedRecording?.id || fetchingGoogleMeetData}
             >
               {regenerateTranscriptMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -302,10 +319,10 @@ const TopComponent = ({ loading }: Props) => {
                 <FileText className="h-4 w-4" />
               )}
               <span className="hidden lg:inline">
-                {regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending ? "Regenerating..." : "Regenerate Transcript & Summary"}
+                {regenerateTranscriptMutation.isPending ? "Regenerating..." : "Regenerate Transcript & Summary"}
               </span>
               <span className="lg:hidden">
-                {regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending ? "Working..." : "Transcript"}
+                {regenerateTranscriptMutation.isPending ? "Working..." : "Transcript"}
               </span>
             </Button>
           </TooltipTrigger>
@@ -319,7 +336,7 @@ const TopComponent = ({ loading }: Props) => {
               variant="outline" 
               size="sm"
               onClick={handleRegenerateSummary}
-              disabled={regenerateSummaryMutation.isPending || regenerateTranscriptMutation.isPending || !selectedRecording?.id || !selectedRecording?.transcript}
+              disabled={regenerateSummaryMutation.isPending || regenerateTranscriptMutation.isPending || !selectedRecording?.id || !selectedRecording?.transcript || fetchingGoogleMeetData}
             >
               {regenerateSummaryMutation.isPending ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -338,11 +355,42 @@ const TopComponent = ({ loading }: Props) => {
             <p>Regenerates only the summary using the existing transcript</p>
           </TooltipContent>
         </Tooltip>
-        <Button variant="destructive" size="sm">
-          <Trash2 className="h-4 w-4" />
-          <span className="">Delete</span>
-        </Button>
+        
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button 
+              variant="destructive" 
+              size="sm"
+              onClick={() => setShowDeleteDialog(true)}
+              disabled={regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || deleteRecordingMutation.isPending || !selectedRecording?.id}
+            >
+              {deleteRecordingMutation.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Trash2 className="h-4 w-4" />
+              )}
+              <span className="hidden lg:inline">
+                {deleteRecordingMutation.isPending ? "Deleting..." : "Delete"}
+              </span>
+              <span className="lg:hidden">
+                {deleteRecordingMutation.isPending ? "Deleting..." : "Delete"}
+              </span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>
+            <p>Permanently delete this recording and all associated data</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <DeleteRecordingDialog
+        isOpen={showDeleteDialog}
+        onOpenChange={setShowDeleteDialog}
+        recording={selectedRecording}
+        onConfirmDelete={handleDeleteRecording}
+        isDeleting={deleteRecordingMutation.isPending}
+      />
     </div>
   );
 };

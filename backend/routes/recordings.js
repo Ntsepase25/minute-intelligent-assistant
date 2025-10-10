@@ -1112,4 +1112,56 @@ recordingsRouter.post("/regenerate-summary/:recordingId", async (req, res) => {
   }
 });
 
+// Delete recording endpoint
+recordingsRouter.delete("/:recordingId", async (req, res) => {
+  try {
+    const { recordingId } = req.params;
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession)
+      return res.status(401).json({ message: "User not logged in" });
+
+    const recording = await prisma.recording.findUnique({
+      where: { id: recordingId },
+    });
+    if (!recording)
+      return res.status(404).json({ message: "Recording not found" });
+    if (recording.userId !== userSession.user.id)
+      return res.status(403).json({ message: "Access denied" });
+
+    console.log(`🗑️ [DELETE] Starting deletion process for recording: ${recordingId}`);
+
+    // Delete associated data in the correct order to respect foreign key constraints
+    
+    // 1. Delete transcript entries
+    await prisma.transcriptEntry.deleteMany({
+      where: { recordingId },
+    });
+    console.log(`🗑️ [DELETE] Deleted transcript entries for recording: ${recordingId}`);
+
+    // 2. Delete participants
+    await prisma.participant.deleteMany({
+      where: { recordingId },
+    });
+    console.log(`🗑️ [DELETE] Deleted participants for recording: ${recordingId}`);
+
+    // 3. Delete the recording itself
+    await prisma.recording.delete({
+      where: { id: recordingId },
+    });
+    console.log(`🗑️ [DELETE] ✅ Successfully deleted recording: ${recordingId}`);
+
+    return res.status(200).json({
+      message: "Recording and all associated data deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete recording error:", error);
+    return res.status(500).json({
+      error: "Failed to delete recording",
+      details: error?.message || String(error),
+    });
+  }
+});
+
 export default recordingsRouter;

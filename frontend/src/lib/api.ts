@@ -124,7 +124,7 @@ export const recordingsApi = {
     return apiRequest(`/recordings/assembly-ai-status/${transcriptId}`);
   },
 
-  // Delete recording (if you implement this endpoint)
+  // Delete recording
   deleteRecording: async (recordingId: string): Promise<{ message: string }> => {
     return apiRequest(`/recordings/${recordingId}`, {
       method: 'DELETE',
