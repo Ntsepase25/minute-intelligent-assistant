@@ -275,7 +275,7 @@ const TopComponent = ({ loading }: Props) => {
           <AudioPlayer audioUrl={selectedRecording?.recordingUrl} />
         )}
       </div>
-      <div className="flex flex-wrap gap-2 items-center">
+      <div className="flex flex-wrap gap-2 items-center ">
         {/* Google Meet data fetch button - only show for Google Meet recordings */}
         {selectedRecording?.meetingPlatform === "google-meet" && selectedRecording?.meetingId && (
           <Tooltip>
@@ -283,6 +283,7 @@ const TopComponent = ({ loading }: Props) => {
               <Button 
                 variant="outline" 
                 size="sm"
+                className="not-sm:w-full"
                 onClick={handleFetchGoogleMeetData}
                 disabled={fetchingGoogleMeetData || regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || !selectedRecording?.id}
               >
@@ -310,6 +311,7 @@ const TopComponent = ({ loading }: Props) => {
             <Button 
               variant="outline" 
               size="sm"
+              className="not-sm:w-full"
               onClick={handleRegenerateTranscript}
               disabled={regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || !selectedRecording?.id || fetchingGoogleMeetData}
             >
@@ -335,6 +337,7 @@ const TopComponent = ({ loading }: Props) => {
             <Button 
               variant="outline" 
               size="sm"
+              className="not-sm:w-full"
               onClick={handleRegenerateSummary}
               disabled={regenerateSummaryMutation.isPending || regenerateTranscriptMutation.isPending || !selectedRecording?.id || !selectedRecording?.transcript || fetchingGoogleMeetData}
             >
@@ -361,6 +364,7 @@ const TopComponent = ({ loading }: Props) => {
             <Button 
               variant="destructive" 
               size="sm"
+              className="not-sm:w-full"
               onClick={() => setShowDeleteDialog(true)}
               disabled={regenerateTranscriptMutation.isPending || regenerateSummaryMutation.isPending || deleteRecordingMutation.isPending || !selectedRecording?.id}
             >

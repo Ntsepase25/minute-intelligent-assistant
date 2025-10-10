@@ -49,12 +49,11 @@ const AudioPlayer = ({ audioUrl }: Props) => {
         <CardContent className="w-5/6 px-4 flex justify-start bg-none shadow-none pl-0">
           <div className="flex flex-col justify-center w-full h-[100px] pl-0">
             <div
-              className="pt-3 rounded-md w-full h-[60px]"
+              className="pt-3 rounded-md w-full h-[60px] min-w-52 md:min-w-72"
               style={{
                 minHeight: "60px",
                 height: "60px",
                 width: "100%",
-                minWidth: "300px",
               }}
             >
               <div
