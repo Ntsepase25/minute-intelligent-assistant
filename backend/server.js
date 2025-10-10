@@ -39,7 +39,7 @@ app.use(express.json());
 app.use("/recordings", recordingsRouter);
 
 app.get("/", (req, res) => {
-  res.redirect("http://localhost:5173/dashboard");
+  res.redirect(`${process.env.FRONTEND_BASE_URL || "http://localhost:5173"}/dashboard`);
 });
 
 app.listen(PORT, () => {
