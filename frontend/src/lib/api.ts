@@ -1,6 +1,11 @@
 import { recording } from "./types";
 
-const BASE_URL = "https://minute-intelligent-assistant.onrender.com";
+// Use proxy in production, direct backend in development
+const BASE_URL = typeof window !== 'undefined' && window.location.hostname !== 'localhost'
+  ? window.location.origin  // Production: use same domain (proxied)
+  : "http://localhost:8080"; // Development: direct backend
+
+console.log('API BASE_URL:', BASE_URL);
 
 export class ApiError extends Error {
   status: number;
