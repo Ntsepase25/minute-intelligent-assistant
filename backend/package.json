@@ -14,7 +14,7 @@
     "start": "prisma generate && npm run build:esbuild && node dist/server.js",
     "start:compiled": "prisma generate && npm run build && node dist/server.js",
     "start:esbuild": "prisma generate && npm run build:esbuild && node dist/server.js",
-    "dev": "nodemon server.js"
+    "dev": "npm run build:esbuild && nodemon dist/server.js"
   },
   "author": "",
   "license": "ISC",
