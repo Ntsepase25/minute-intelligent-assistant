@@ -91,6 +91,10 @@ model Recording {
   googleOperationName String?
   assemblyOperationId String?
   
+  // Processing status fields
+  transcriptionStatus String?  @default("pending")  // pending, processing, completed, failed
+  summaryStatus       String?  @default("pending")  // pending, processing, completed, failed
+  
   // Google Meet specific fields
   googleMeetConferenceId String?
   googleMeetSpace        String?

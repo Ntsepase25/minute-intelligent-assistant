@@ -14,29 +14,29 @@ dotenv.config();
 const app = express();
 
 // Enable CORS with credentials support
-app.use(
-  cors({
-    origin: function (origin, callback) {
-      const allowedOrigins = [
-        process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app",
-        "https://minute-intelligent-assistant.onrender.com",
-        "http://localhost:5173",
-        "http://localhost:8080"
-      ];
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
-        callback(null, true);
-      } else {
-        callback(null, true); // Allow all for now to debug
-      }
-    },
-    credentials: true, // Allow credentials (cookies, auth headers)
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    optionsSuccessStatus: 200,
-    allowedHeaders: ["Content-Type", "Authorization", "Cookie"],
-    exposedHeaders: ["Set-Cookie"],
-  })
-);
+const corsOptions = {
+  origin: function (origin, callback) {
+    const allowedOrigins = [
+      process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app",
+      "https://minute-intelligent-assistant.onrender.com",
+      "http://localhost:5173",
+      "http://localhost:8080"
+    ];
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(null, true); // Allow all for now to debug
+    }
+  },
+  credentials: true, // Allow credentials (cookies, auth headers)
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  optionsSuccessStatus: 200,
+  exposedHeaders: ["Set-Cookie"],
+};
+
+app.use(cors(corsOptions));
+app.options("{*any}", cors(corsOptions)); // Enable pre-flight for all routes
 
 app.use(
   "/api/uploadthing",

@@ -30,7 +30,7 @@ const AudioPlayer = ({ audioUrl }: Props) => {
   }
 
   return (
-    <div className="flex items-center md:pl-2 mt-2 w-full">
+    <div className="flex items-center md:pl-2 mt-2 w-[65%]">
       <Card className="flex shadow-none bg-transparent border-none flex-row items-center justify-between gap-0 w-full py-2 rounded-md">
         <CardHeader className="w-1/6 pl-4 pr-0 flex items-center justify-end">
           <Button
@@ -49,12 +49,11 @@ const AudioPlayer = ({ audioUrl }: Props) => {
         <CardContent className="w-5/6 px-4 flex justify-start bg-none shadow-none pl-0">
           <div className="flex flex-col justify-center w-full h-[100px] pl-0">
             <div
-              className="pt-3 rounded-md w-full h-[60px]"
+              className="pt-3 rounded-md w-full h-[60px] min-w-52 md:min-w-60"
               style={{
                 minHeight: "60px",
                 height: "60px",
                 width: "100%",
-                minWidth: "300px",
               }}
             >
               <div

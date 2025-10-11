@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, type LucideIcon } from "lucide-react";
+import { ChevronRight, type LucideIcon, Loader2 } from "lucide-react";
 
 import {
   Collapsible,
@@ -20,6 +20,7 @@ import {
 import { SidebarLoadingSkeleton } from "./dashboard/loadingSidebar";
 import { recording, sidebarItem } from "@/lib/types";
 import { useRecordingsStore } from "@/stores/recordingsStore";
+import { getRecordingDisplayTitle, isRecordingProcessing } from "@/utils/recordingHelpers";
 
 export function NavMain({
   items,
@@ -65,26 +66,37 @@ export function NavMain({
                 <CollapsibleContent>
                   <SidebarMenuSub>
                     {item.items && item.items.length > 0 ? (
-                      item.items?.map((subItem) => (
-                        <SidebarMenuSubItem
-                          key={subItem.id}
-                          className={
-                            subItem.id === selectedRecording?.id
-                              ? "bg-accent rounded"
-                              : ""
-                          }
-                        >
-                          <SidebarMenuSubButton
-                            asChild
-                            className="cursor-pointer"
-                            onClick={() => setSelectedRecording(subItem)}
+                      item.items?.map((subItem) => {
+                        const displayTitle = getRecordingDisplayTitle(subItem);
+                        const isProcessing = isRecordingProcessing(subItem);
+                        
+                        return (
+                          <SidebarMenuSubItem
+                            key={subItem.id}
+                            className={
+                              subItem.id === selectedRecording?.id
+                                ? "bg-accent rounded"
+                                : ""
+                            }
                           >
-                            {/* <a href={subItem.url}> */}
-                            <span className="truncate">{(subItem.title || subItem.meetingId).substring(0, 25)}...</span>
-                            {/* </a> */}
-                          </SidebarMenuSubButton>
-                        </SidebarMenuSubItem>
-                      ))
+                            <SidebarMenuSubButton
+                              asChild
+                              className="cursor-pointer"
+                              onClick={() => setSelectedRecording(subItem)}
+                            >
+                              <span className="flex items-center gap-2 truncate">
+                                {isProcessing && (
+                                  <Loader2 className="h-3 w-3 animate-spin flex-shrink-0" />
+                                )}
+                                <span className="truncate">
+                                  {displayTitle.substring(0, 25)}
+                                  {displayTitle.length > 25 && "..."}
+                                </span>
+                              </span>
+                            </SidebarMenuSubButton>
+                          </SidebarMenuSubItem>
+                        );
+                      })
                     ) : (
                       <div className="p-2 text-sm text-muted-foreground">
                         No recordings available

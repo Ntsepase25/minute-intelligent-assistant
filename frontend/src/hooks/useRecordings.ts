@@ -20,9 +20,26 @@ export function useRecordings() {
   return useQuery({
     queryKey: queryKeys.recordings,
     queryFn: recordingsApi.getRecordings,
-    select: (data: { recordings: recording[] }) => data.recordings, // Extract just the recordings array
-    staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
-    refetchOnWindowFocus: true, // Refetch when user returns to tab
+    select: (data: { recordings: recording[] }) => {
+      console.log('📊 [RECORDINGS] Raw data received:', data.recordings?.length, 'recordings');
+      
+      // Log each recording ID to detect duplicates
+      if (data.recordings && data.recordings.length > 0) {
+        const ids = data.recordings.map(r => r.id.substring(0, 8));
+        const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+        if (duplicates.length > 0) {
+          console.error('⚠️ [RECORDINGS] DUPLICATE IDs DETECTED FROM BACKEND:', duplicates);
+        }
+        console.log('📊 [RECORDINGS] IDs:', ids.join(', '));
+      }
+      
+      return data.recordings;
+    },
+    staleTime: 0,
+    gcTime: 0,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    // NO refetchInterval - we'll handle polling manually with setInterval
   });
 }
 
