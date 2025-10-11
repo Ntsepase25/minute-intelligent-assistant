@@ -1112,6 +1112,86 @@ recordingsRouter.post("/regenerate-summary/:recordingId", async (req, res) => {
   }
 });
 
+// Process uploaded recording from UploadThing
+recordingsRouter.post("/process-upload", async (req, res) => {
+  console.log("📤 [UPLOAD] Starting /process-upload endpoint processing...");
+  
+  try {
+    // Auth
+    const userSession = await auth.api.getSession({
+      headers: fromNodeHeaders(req.headers),
+    });
+    if (!userSession) {
+      return res.status(401).json({ message: "User not logged in" });
+    }
+    console.log("📤 [UPLOAD] ✅ User authenticated:", userSession.user.id);
+
+    // Parse request body
+    const { fileUrl, meetingTitle, meetingDate, meetingId, meetingPlatform, participants } = req.body;
+    
+    if (!fileUrl) {
+      return res.status(400).json({ error: "File URL is required" });
+    }
+
+    console.log("📤 [UPLOAD] File URL:", fileUrl);
+    console.log("📤 [UPLOAD] Metadata:", { meetingTitle, meetingDate, meetingPlatform, meetingId });
+
+    // Create DB recording entry with "Transcribing" status
+    console.log("📤 [UPLOAD] Creating recording entry in database...");
+    const recordingRecord = await prisma.recording.create({
+      data: {
+        userId: userSession.user.id,
+        recordingUrl: fileUrl,
+        title: meetingTitle || "Untitled Recording",
+        meetingPlatform: meetingPlatform || null,
+        meetingId: meetingId || null,
+        transcriptionStatus: "processing",
+        summaryStatus: "pending",
+      },
+    });
+    console.log("📤 [UPLOAD] ✅ Recording entry created with ID:", recordingRecord.id);
+
+    // Add participants if provided
+    if (participants && Array.isArray(participants) && participants.length > 0) {
+      console.log("📤 [UPLOAD] Adding participants to recording...");
+      // Note: Skipping participant creation as the schema expects Google Meet specific fields
+      // Users can manually add participants via the UI or through Google Meet integration
+      console.log("📤 [UPLOAD] ⚠️ Participant names provided but skipped (requires Google Meet integration)");
+    }
+
+    // Start AssemblyAI transcription asynchronously (don't await)
+    console.log("📤 [UPLOAD] Starting AssemblyAI transcription in background...");
+    transcribeFromAssemblyAI(fileUrl, recordingRecord.id, true)
+      .then(() => {
+        console.log("📤 [UPLOAD] ✅ Transcription completed for recording:", recordingRecord.id);
+      })
+      .catch((error) => {
+        console.error("📤 [UPLOAD] ❌ Transcription error for recording:", recordingRecord.id, error);
+        // Update recording status to failed
+        prisma.recording.update({
+          where: { id: recordingRecord.id },
+          data: { 
+            transcriptionStatus: "failed",
+            summaryStatus: "failed" 
+          },
+        }).catch(console.error);
+      });
+
+    console.log("📤 [UPLOAD] ✅ Processing initiated successfully");
+    return res.status(201).json({
+      message: "Recording created and transcription started",
+      recordingId: recordingRecord.id,
+      recording: recordingRecord,
+    });
+  } catch (error) {
+    console.error("📤 [UPLOAD] ❌ Process upload endpoint error:", error);
+    return res.status(500).json({
+      error: "Failed to process uploaded recording",
+      details: error?.message || String(error),
+    });
+  }
+});
+
 // Delete recording endpoint
 recordingsRouter.delete("/:recordingId", async (req, res) => {
   try {

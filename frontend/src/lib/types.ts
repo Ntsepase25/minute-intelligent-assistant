@@ -62,6 +62,10 @@ export type recording = {
   selected: boolean;
   url: string;
   
+  // Processing status fields
+  transcriptionStatus: string | null;  // pending, processing, completed, failed
+  summaryStatus: string | null;  // pending, processing, completed, failed
+  
   // Google Meet specific fields
   googleMeetConferenceId: string | null;
   googleMeetSpace: string | null;

@@ -23,6 +23,26 @@ export function useRecordings() {
     select: (data: { recordings: recording[] }) => data.recordings, // Extract just the recordings array
     staleTime: 2 * 60 * 1000, // Consider data stale after 2 minutes
     refetchOnWindowFocus: true, // Refetch when user returns to tab
+    refetchInterval: (query) => {
+      // Auto-refetch if there are any recordings that are processing
+      // Note: query.state.data is the RAW data before the select transform
+      const rawData = query.state.data as { recordings: recording[] } | undefined;
+      const recordings = rawData?.recordings;
+      
+      if (!recordings || !Array.isArray(recordings)) {
+        return false;
+      }
+      
+      const hasProcessing = recordings.some(
+        (rec) =>
+          rec.transcriptionStatus === "processing" ||
+          rec.transcriptionStatus === "pending" ||
+          rec.summaryStatus === "processing"
+      );
+      
+      // Poll every 5 seconds if there are processing recordings
+      return hasProcessing ? 5000 : false;
+    },
   });
 }
 

@@ -47,19 +47,70 @@ export function UploadRecordingDialog({
   >("idle");
 
   const { startUpload, routeConfig } = useUploadThing("recordingUploader", {
-    onClientUploadComplete: (res) => {
+    onClientUploadComplete: async (res) => {
       console.log("Upload completed:", res);
-      setUploadStatus("success");
-      toast.success("Recording uploaded successfully!", {
-        description:
-          "Your recording is being transcribed. This may take a few minutes.",
-      });
       
-      // Call the callback and close dialog after a short delay
-      setTimeout(() => {
-        onUploadComplete?.();
-        handleClose();
-      }, 2000);
+      // Extract the file URL from UploadThing response
+      const fileUrl = res?.[0]?.ufsUrl || res?.[0]?.url;
+      
+      if (!fileUrl) {
+        console.error("No file URL in upload response:", res);
+        setUploadStatus("error");
+        toast.error("Upload failed", {
+          description: "Could not get file URL from upload",
+        });
+        return;
+      }
+
+      console.log("File uploaded to:", fileUrl);
+      
+      // Now call our backend to start transcription
+      try {
+        const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:8080";
+        
+        const response = await fetch(`${BACKEND_URL}/recordings/process-upload`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            fileUrl,
+            meetingTitle: meetingTitle || undefined,
+            meetingDate: meetingDate || undefined,
+            meetingId: meetingId || undefined,
+            meetingPlatform: meetingPlatform || undefined,
+            participants: participants
+              ? participants.split("\n").filter((p) => p.trim())
+              : undefined,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Failed to start transcription");
+        }
+
+        const data = await response.json();
+        console.log("Backend processing started:", data);
+
+        setUploadStatus("success");
+        toast.success("Recording uploaded successfully!", {
+          description: "Transcription has started. This may take a few minutes.",
+        });
+        
+        // Call the callback and close dialog after a short delay
+        setTimeout(() => {
+          onUploadComplete?.();
+          handleClose();
+        }, 2000);
+      } catch (error) {
+        console.error("Error starting transcription:", error);
+        setUploadStatus("error");
+        toast.error("Failed to start transcription", {
+          description: error instanceof Error ? error.message : "Please try again",
+        });
+      }
     },
     onUploadError: (error: Error) => {
       console.error("Upload error:", error);
@@ -323,9 +374,9 @@ export function UploadRecordingDialog({
                 <Button
                   onClick={handleUpload}
                   className="w-full"
-                  disabled={uploadStatus === "uploading"}
+                  disabled={uploadStatus as any === "uploading"}
                 >
-                  {uploadStatus === "uploading" ? (
+                  {(uploadStatus as any) === "uploading" ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Uploading...

@@ -348,55 +348,115 @@ export async function transcribeFromAssemblyAI(
     `🔵 [ASSEMBLY-AI] Transcribing ${fileUrl} for recording ID: ${recordingId}`
   );
 
-  const client = new AssemblyAI({
-    apiKey: assemblyApiKey,
-  });
+  try {
+    // Update status to processing
+    if (saveToDb) {
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { 
+          transcriptionStatus: "processing",
+        },
+      });
+    }
 
-  // Start transcription with automatic language detection for multilingual content
-  const transcript = await client.transcripts.transcribe({
-    audio_url: fileUrl,
-    speech_model: "universal",
-    format_text: true,
-    punctuate: true,
-    language_detection: true, // Enable automatic language detection
-    // Remove fixed language_code since AssemblyAI doesn't support Sesotho
-    // This will auto-detect English and other supported languages
-  });
-
-  console.log("🔵 [ASSEMBLY-AI] Transcription completed:", transcript.status);
-
-  if (transcript.status === "error") {
-    throw new Error(`AssemblyAI transcription failed: ${transcript.error}`);
-  }
-
-  const transcriptText = transcript.text || "No transcript available";
-  
-  console.log("🔵 [ASSEMBLY-AI] ✅ Transcript received, generating summary...");
-  const summary = await generateSummary(transcriptText);
-
-  if (saveToDb) {
-    console.log("🔵 [ASSEMBLY-AI] Saving transcript and summary to database...");
-    await prisma.recording.update({
-      where: { id: recordingId },
-      data: { 
-        transcript: transcriptText,
-        summary: typeof summary === 'string' ? summary : summary.minutes,
-        title: typeof summary === 'object' ? summary.title : null,
-        minutes: typeof summary === 'object' ? summary.minutes : null,
-        actionItems: typeof summary === 'object' ? summary.actionItems : null,
-        nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
-        summaryData: typeof summary === 'object' ? summary : null,
-        assemblyOperationId: transcript.id,
-      },
+    const client = new AssemblyAI({
+      apiKey: assemblyApiKey,
     });
-    console.log("🔵 [ASSEMBLY-AI] ✅ Database updated successfully");
-  }
 
-  console.log(
-    `🔵 [ASSEMBLY-AI] ✅ Complete processing finished for recording ID: ${recordingId}`
-  );
-  
-  return { transcriptText, summary };
+    // Start transcription with automatic language detection for multilingual content
+    const transcript = await client.transcripts.transcribe({
+      audio_url: fileUrl,
+      speech_model: "universal",
+      format_text: true,
+      punctuate: true,
+      language_detection: true, // Enable automatic language detection
+      // Remove fixed language_code since AssemblyAI doesn't support Sesotho
+      // This will auto-detect English and other supported languages
+    });
+
+    console.log("🔵 [ASSEMBLY-AI] Transcription completed:", transcript.status);
+
+    if (transcript.status === "error") {
+      // Update status to failed
+      if (saveToDb) {
+        await prisma.recording.update({
+          where: { id: recordingId },
+          data: { 
+            transcriptionStatus: "failed",
+            summaryStatus: "failed",
+          },
+        });
+      }
+      throw new Error(`AssemblyAI transcription failed: ${transcript.error}`);
+    }
+
+    const transcriptText = transcript.text || "No transcript available";
+    
+    // Update transcription status to completed
+    if (saveToDb) {
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { 
+          transcript: transcriptText,
+          transcriptionStatus: "completed",
+          summaryStatus: "processing",
+          assemblyOperationId: transcript.id,
+        },
+      });
+    }
+    
+    console.log("🔵 [ASSEMBLY-AI] ✅ Transcript received, generating summary...");
+    const summary = await generateSummary(transcriptText);
+
+    if (saveToDb) {
+      console.log("🔵 [ASSEMBLY-AI] Saving summary to database...");
+      
+      // Determine title - use Gemini-generated title if user didn't provide one
+      const recording = await prisma.recording.findUnique({
+        where: { id: recordingId },
+        select: { title: true },
+      });
+      
+      const shouldUseGeneratedTitle = !recording?.title || 
+        recording.title === "Untitled Recording" || 
+        recording.title.trim() === "";
+      
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { 
+          summary: typeof summary === 'string' ? summary : summary.minutes,
+          title: shouldUseGeneratedTitle && typeof summary === 'object' ? summary.title : recording?.title,
+          minutes: typeof summary === 'object' ? summary.minutes : null,
+          actionItems: typeof summary === 'object' ? summary.actionItems : null,
+          nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
+          summaryData: typeof summary === 'object' ? summary : null,
+          summaryStatus: "completed",
+        },
+      });
+      console.log("🔵 [ASSEMBLY-AI] ✅ Database updated successfully");
+    }
+
+    console.log(
+      `🔵 [ASSEMBLY-AI] ✅ Complete processing finished for recording ID: ${recordingId}`
+    );
+    
+    return { transcriptText, summary };
+  } catch (error) {
+    console.error("🔵 [ASSEMBLY-AI] ❌ Error during transcription:", error);
+    
+    // Update status to failed
+    if (saveToDb) {
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { 
+          transcriptionStatus: "failed",
+          summaryStatus: "failed",
+        },
+      }).catch(console.error);
+    }
+    
+    throw error;
+  }
 }
 
 // Regenerate transcript only for a recording
@@ -415,41 +475,67 @@ export async function regenerateTranscript(recordingId: string) {
     throw new Error("No recording URL found for this recording");
   }
 
-  console.log(`🔄 [REGENERATE] Transcribing audio without auto-summary...`);
-  
-  const assemblyApiKey = process.env.ASSEMBLY_AI_API_KEY;
-  if (!assemblyApiKey) throw new Error("AssemblyAI API key not configured");
+  try {
+    // Update status to processing
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { 
+        transcriptionStatus: "processing",
+      },
+    });
 
-  const client = new AssemblyAI({
-    apiKey: assemblyApiKey,
-  });
+    console.log(`🔄 [REGENERATE] Transcribing audio without auto-summary...`);
+    
+    const assemblyApiKey = process.env.ASSEMBLY_AI_API_KEY;
+    if (!assemblyApiKey) throw new Error("AssemblyAI API key not configured");
 
-  // Start transcription with automatic language detection for multilingual content
-  const transcript = await client.transcripts.transcribe({
-    audio_url: recording.recordingUrl,
-    speech_model: "universal",
-    format_text: true,
-    punctuate: true,
-    language_detection: true, // Enable automatic language detection
-  });
+    const client = new AssemblyAI({
+      apiKey: assemblyApiKey,
+    });
 
-  if (transcript.status === "error") {
-    throw new Error(`AssemblyAI transcription failed: ${transcript.error}`);
+    // Start transcription with automatic language detection for multilingual content
+    const transcript = await client.transcripts.transcribe({
+      audio_url: recording.recordingUrl,
+      speech_model: "universal",
+      format_text: true,
+      punctuate: true,
+      language_detection: true, // Enable automatic language detection
+    });
+
+    if (transcript.status === "error") {
+      await prisma.recording.update({
+        where: { id: recordingId },
+        data: { 
+          transcriptionStatus: "failed",
+        },
+      });
+      throw new Error(`AssemblyAI transcription failed: ${transcript.error}`);
+    }
+
+    const transcriptText = transcript.text || "No transcript available";
+    
+    // Save only the transcript first (with completed status)
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { 
+        transcript: transcriptText,
+        transcriptionStatus: "completed",
+        assemblyOperationId: transcript.id,
+      },
+    });
+    
+    console.log(`🔄 [REGENERATE] ✅ Transcript regenerated for recording: ${recordingId}`);
+    return { transcriptText };
+  } catch (error) {
+    console.error(`🔄 [REGENERATE] ❌ Error regenerating transcript:`, error);
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { 
+        transcriptionStatus: "failed",
+      },
+    }).catch(console.error);
+    throw error;
   }
-
-  const transcriptText = transcript.text || "No transcript available";
-  
-  // Save only the transcript first (without summary)
-  await prisma.recording.update({
-    where: { id: recordingId },
-    data: { 
-      transcript: transcriptText,
-      assemblyOperationId: transcript.id,
-    },
-  });
-  
-  console.log(`🔄 [REGENERATE] ✅ Transcript regenerated for recording: ${recordingId}`);
-  return { transcriptText };
 }
 
 // Regenerate summary only for a recording (requires existing transcript)
@@ -468,22 +554,50 @@ export async function regenerateSummary(recordingId: string) {
     throw new Error("No transcript found for this recording. Please regenerate transcript first.");
   }
 
-  console.log(`🔄 [REGENERATE] Generating summary from existing transcript...`);
-  const summary = await generateSummary(recording.transcript);
+  try {
+    // Update status to processing
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { 
+        summaryStatus: "processing",
+      },
+    });
 
-  // Save updated summary to database
-  await prisma.recording.update({
-    where: { id: recordingId },
-    data: { 
-      summary: typeof summary === 'string' ? summary : summary.minutes,
-      title: typeof summary === 'object' ? summary.title : null,
-      minutes: typeof summary === 'object' ? summary.minutes : null,
-      actionItems: typeof summary === 'object' ? summary.actionItems : null,
-      nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
-      summaryData: typeof summary === 'object' ? summary : null,
-    },
-  });
+    console.log(`🔄 [REGENERATE] Generating summary from existing transcript...`);
+    const summary = await generateSummary(recording.transcript);
 
-  console.log(`🔄 [REGENERATE] ✅ Summary regenerated for recording: ${recordingId}`);
-  return summary;
+    // Determine if we should use the generated title
+    const shouldUseGeneratedTitle = !recording.title || 
+      recording.title === "Untitled Recording" || 
+      recording.title.trim() === "" ||
+      recording.title === "Transcribing & Summarizing..." ||
+      recording.title === "Processing Failed";
+
+    // Save updated summary to database
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { 
+        summary: typeof summary === 'string' ? summary : summary.minutes,
+        title: shouldUseGeneratedTitle && typeof summary === 'object' ? summary.title : recording.title,
+        minutes: typeof summary === 'object' ? summary.minutes : null,
+        actionItems: typeof summary === 'object' ? summary.actionItems : null,
+        nextMeeting: typeof summary === 'object' ? summary.nextMeeting : null,
+        summaryData: typeof summary === 'object' ? summary : null,
+        summaryStatus: "completed",
+      },
+    });
+    
+    console.log(`🔄 [REGENERATE] ✅ Summary regenerated for recording: ${recordingId}`);
+    return summary;
+  } catch (error) {
+    console.error(`🔄 [REGENERATE] ❌ Error regenerating summary:`, error);
+    await prisma.recording.update({
+      where: { id: recordingId },
+      data: { 
+        summaryStatus: "failed",
+      },
+    }).catch(console.error);
+    throw error;
+  }
 }
+

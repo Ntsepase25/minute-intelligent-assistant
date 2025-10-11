@@ -56,7 +56,9 @@ export const uploadRouter = {
             userId: metadata.userId,
             meetingId: metadata.metadata.meetingId || null,
             meetingPlatform: metadata.metadata.meetingPlatform || null,
-            title: metadata.metadata.meetingTitle || "Untitled Recording",
+            title: metadata.metadata.meetingTitle || null,
+            transcriptionStatus: "processing",
+            summaryStatus: "pending",
             createdAt: metadata.metadata.meetingDate 
               ? new Date(metadata.metadata.meetingDate) 
               : new Date(),
@@ -72,6 +74,14 @@ export const uploadRouter = {
           })
           .catch((error) => {
             console.error("📤 [UPLOADTHING] Transcription error:", error);
+            // Update status to failed
+            prisma.recording.update({
+              where: { id: recording.id },
+              data: { 
+                transcriptionStatus: "failed",
+                summaryStatus: "failed"
+              },
+            }).catch(console.error);
           });
 
         // If Google Meet data is available, fetch it
