@@ -35,7 +35,7 @@ export default function BentoGrid() {
         <Pin className="h-4 w-4 text-primary" />
         Notes & Key Points
       </div>
-      
+
       {/* Decorative elements */}
       <div className="bg-primary/5 absolute top-20 -left-20 h-64 w-64 rounded-full blur-3xl" />
       <div className="bg-primary/5 absolute -right-20 bottom-20 h-64 w-64 rounded-full blur-3xl" />
@@ -67,11 +67,14 @@ export default function BentoGrid() {
         {/* Transcript - Full width on mobile/tablet, 2 cols on desktop */}
         <div className="col-span-1 lg:col-span-2 min-h-60">
           {selectedRecording.meetingPlatform === "google-meet" ? (
-            <TranscriptWithSpeakers 
+            <TranscriptWithSpeakers
               transcriptEntries={selectedRecording.transcriptEntries}
               participants={selectedRecording.participants}
               meetingId={selectedRecording.meetingId}
-              googleMeetError={!selectedRecording.transcriptEntries && !selectedRecording.participants}
+              googleMeetError={
+                !selectedRecording.transcriptEntries &&
+                !selectedRecording.participants
+              }
             />
           ) : (
             <Transcript transcript={selectedRecording.transcript} />
@@ -79,9 +82,11 @@ export default function BentoGrid() {
         </div>
 
         {/* Regular Transcript - Full width on mobile/tablet, 3 cols on desktop */}
-        <div className="col-span-1 lg:col-span-3 min-h-60">
-          <Transcript transcript={selectedRecording.transcript} />
-        </div>
+        {selectedRecording.meetingPlatform === "google-meet" && (
+          <div className="col-span-1 lg:col-span-3 min-h-60">
+            <Transcript transcript={selectedRecording.transcript} />
+          </div>
+        )}
       </div>
     </section>
   );

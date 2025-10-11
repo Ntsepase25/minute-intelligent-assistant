@@ -199,7 +199,7 @@ const DashBoard = () => {
   }, [recordingsError]);
 
   if (!session && !isPending) {
-    window.location.href = "/login";
+    window.location.href = "/sign-in";
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Alert variant="destructive" className="w-full max-w-md">
