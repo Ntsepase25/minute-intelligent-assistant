@@ -173,14 +173,14 @@ export function AppSidebar({
   loading?: boolean;
   isLoadingUser: boolean;
   user: User | null;
-  onUploadComplete?: () => void;
+  onUploadComplete?: (recording?: any) => void;
 }) {
   const [uploadDialogOpen, setUploadDialogOpen] = useState(false);
   const sidebarData = items || [];
   data.navMain[0].items = sidebarData;
 
-  const handleUploadComplete = () => {
-    onUploadComplete?.();
+  const handleUploadComplete = (recording?: any) => {
+    onUploadComplete?.(recording);
   };
 
   return (

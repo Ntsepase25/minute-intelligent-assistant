@@ -6,6 +6,7 @@ import ActionItems from "@/components/dashboard/ActionItems";
 import NextMeeting from "@/components/dashboard/NextMeeting";
 import Transcript from "@/components/dashboard/Transcript";
 import TranscriptWithSpeakers from "@/components/dashboard/TranscriptWithSpeakers";
+import { isRecordingProcessing } from "@/utils/recordingHelpers";
 
 export default function BentoGrid() {
   const { selectedRecording } = useRecordingsStore();
@@ -47,6 +48,9 @@ export default function BentoGrid() {
             minutes={selectedRecording.minutes}
             summary={selectedRecording.summary}
             createdAt={selectedRecording.createdAt}
+            isProcessing={isRecordingProcessing(selectedRecording)}
+            transcriptionStatus={selectedRecording.transcriptionStatus}
+            summaryStatus={selectedRecording.summaryStatus}
           />
         </div>
 

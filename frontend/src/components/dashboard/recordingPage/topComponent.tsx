@@ -9,6 +9,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { useRegenerateTranscript, useRegenerateSummary, useDeleteRecording } from "@/hooks/useRecordings";
 import { DeleteRecordingDialog } from "./deleteRecordingDialog";
+import { isRecordingProcessing, getRecordingStatusMessage } from "@/utils/recordingHelpers";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 type Props = {
   loading: boolean;
@@ -268,11 +270,23 @@ const TopComponent = ({ loading }: Props) => {
 
   return (
     <div className="flex lg:flex-row flex-col gap-2 justify-between mx-2">
-      <div>
+      <div className="flex-1">
         {loading ? (
           <AudioPlayerLoadingSkeleton />
         ) : (
-          <AudioPlayer audioUrl={selectedRecording?.recordingUrl} />
+          <div>
+            <AudioPlayer audioUrl={selectedRecording?.recordingUrl} />
+            
+            {/* Show processing status */}
+            {selectedRecording && isRecordingProcessing(selectedRecording) && (
+              <Alert className="mt-2 bg-blue-50 dark:bg-blue-950/20 border-blue-200">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                <AlertDescription className="text-blue-600 font-medium">
+                  {getRecordingStatusMessage(selectedRecording)}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
         )}
       </div>
       <div className="flex flex-wrap gap-2 items-center ">

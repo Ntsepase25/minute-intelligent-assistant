@@ -1,6 +1,7 @@
 import { recording } from "./types";
 
-const BASE_URL = "https://minute-intelligent-assistant.onrender.com";
+// Use localhost for development, production URL for production
+const BASE_URL = import.meta.env.VITE_BACKEND_BASE_URL || "http://localhost:8080";
 
 export class ApiError extends Error {
   status: number;

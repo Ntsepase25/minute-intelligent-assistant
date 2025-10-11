@@ -27,7 +27,7 @@ import { generateClientDropzoneAccept } from "uploadthing/client";
 interface UploadRecordingDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onUploadComplete?: () => void;
+  onUploadComplete?: (recording?: any) => void;
 }
 
 export function UploadRecordingDialog({
@@ -50,67 +50,34 @@ export function UploadRecordingDialog({
     onClientUploadComplete: async (res) => {
       console.log("Upload completed:", res);
       
-      // Extract the file URL from UploadThing response
-      const fileUrl = res?.[0]?.ufsUrl || res?.[0]?.url;
+      // UploadThing's backend callback has already:
+      // 1. Created the recording in the database
+      // 2. Started transcription via AssemblyAI
+      // So we just need to notify the parent component
       
-      if (!fileUrl) {
-        console.error("No file URL in upload response:", res);
+      const recordingId = res?.[0]?.serverData?.recordingId;
+      
+      if (!recordingId) {
+        console.error("No recording ID in upload response:", res);
         setUploadStatus("error");
         toast.error("Upload failed", {
-          description: "Could not get file URL from upload",
+          description: "Could not get recording ID from upload",
         });
         return;
       }
 
-      console.log("File uploaded to:", fileUrl);
+      console.log("Recording created with ID:", recordingId);
       
-      // Now call our backend to start transcription
-      try {
-        const BACKEND_URL = (import.meta as any).env.VITE_BACKEND_BASE_URL || "http://localhost:8080";
-        
-        const response = await fetch(`${BACKEND_URL}/recordings/process-upload`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          body: JSON.stringify({
-            fileUrl,
-            meetingTitle: meetingTitle || undefined,
-            meetingDate: meetingDate || undefined,
-            meetingId: meetingId || undefined,
-            meetingPlatform: meetingPlatform || undefined,
-            participants: participants
-              ? participants.split("\n").filter((p) => p.trim())
-              : undefined,
-          }),
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to start transcription");
-        }
-
-        const data = await response.json();
-        console.log("Backend processing started:", data);
-
-        setUploadStatus("success");
-        toast.success("Recording uploaded successfully!", {
-          description: "Transcription has started. This may take a few minutes.",
-        });
-        
-        // Call the callback and close dialog after a short delay
-        setTimeout(() => {
-          onUploadComplete?.();
-          handleClose();
-        }, 2000);
-      } catch (error) {
-        console.error("Error starting transcription:", error);
-        setUploadStatus("error");
-        toast.error("Failed to start transcription", {
-          description: error instanceof Error ? error.message : "Please try again",
-        });
-      }
+      setUploadStatus("success");
+      toast.success("Recording uploaded successfully!", {
+        description: "Transcription has started. This may take a few minutes.",
+      });
+      
+      // Notify parent to refetch recordings and close dialog
+      setTimeout(() => {
+        onUploadComplete?.({ id: recordingId });
+        handleClose();
+      }, 1000);
     },
     onUploadError: (error: Error) => {
       console.error("Upload error:", error);

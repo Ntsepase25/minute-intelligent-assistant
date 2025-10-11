@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import * as React from "react";
 import { authClient } from "../lib/auth-client";
 import Header from "../components/dashboard/header";
 import DashboardBody from "../components/dashboard/dashboardBody";
@@ -29,6 +30,7 @@ import { SectionCards } from "@/components/section-cards";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { useRecordingsStore } from "@/stores/recordingsStore";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { toast } from "sonner";
 import TopComponent from "@/components/dashboard/recordingPage/topComponent";
@@ -40,14 +42,72 @@ const DashBoard = () => {
   const { data: session, isPending } = authClient.useSession();
   const { selectedRecording, setSelectedRecording } = useRecordingsStore();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const queryClient = useQueryClient();
 
   // Use React Query for recordings data
   const {
-    data: recordings = [],
+    data: recordingsData = [],
     isLoading: loadingRecordings,
     error: recordingsError,
     refetch: refetchRecordings,
   } = useRecordings();
+
+  // Manual polling with setInterval (avoiding React Query's caching issues)
+  useEffect(() => {
+    const checkForProcessing = () => {
+      const hasProcessing = recordingsData.some(
+        (rec: recording) =>
+          rec.transcriptionStatus === "processing" ||
+          rec.transcriptionStatus === "pending" ||
+          rec.summaryStatus === "processing"
+      );
+      
+      if (hasProcessing) {
+        const processingIds = recordingsData
+          .filter((rec: recording) => 
+            rec.transcriptionStatus === "processing" ||
+            rec.transcriptionStatus === "pending" ||
+            rec.summaryStatus === "processing"
+          )
+          .map((r: recording) => r.id.substring(0, 8));
+        
+        console.log(`🔄 [POLLING] ${processingIds.length} recordings still processing:`, processingIds);
+        return true;
+      }
+      
+      console.log('✅ [POLLING] All recordings completed');
+      return false;
+    };
+
+    // Start polling if we have processing recordings
+    if (checkForProcessing()) {
+      console.log('🚀 [POLLING] Starting manual polling every 2 seconds...');
+      
+      const interval = setInterval(async () => {
+        console.log('🔄 [POLLING] Invalidating cache and refetching...');
+        await queryClient.invalidateQueries({ queryKey: ['recordings'] });
+        await refetchRecordings();
+      }, 2000);
+
+      return () => {
+        console.log('⏹️ [POLLING] Stopping polling');
+        clearInterval(interval);
+      };
+    }
+  }, [recordingsData, refetchRecordings, queryClient]);
+
+  // Deduplicate recordings by ID (just in case backend returns duplicates)
+  const recordings = React.useMemo(() => {
+    const seen = new Set();
+    return recordingsData.filter((recording: recording) => {
+      if (seen.has(recording.id)) {
+        console.warn('⚠️ Duplicate recording detected:', recording.id);
+        return false;
+      }
+      seen.add(recording.id);
+      return true;
+    });
+  }, [recordingsData]);
 
   // Set first recording as selected when data loads
   useEffect(() => {
@@ -60,6 +120,34 @@ const DashBoard = () => {
           firstRecording.meetingId ||
           "Untitled Meeting",
       });
+    }
+  }, [recordings, selectedRecording, setSelectedRecording]);
+
+  // Sync selectedRecording with recordings array when data updates
+  // This ensures the UI reflects changes from polling
+  useEffect(() => {
+    if (selectedRecording && recordings.length > 0) {
+      const updatedRecording = recordings.find(r => r.id === selectedRecording.id);
+      if (updatedRecording) {
+        // Check if the recording has been updated (different status or content)
+        const hasChanged = 
+          updatedRecording.transcriptionStatus !== selectedRecording.transcriptionStatus ||
+          updatedRecording.summaryStatus !== selectedRecording.summaryStatus ||
+          updatedRecording.transcript !== selectedRecording.transcript ||
+          updatedRecording.summary !== selectedRecording.summary ||
+          updatedRecording.title !== selectedRecording.title;
+        
+        if (hasChanged) {
+          console.log('🔄 [SYNC] Updating selected recording with fresh data:', {
+            id: updatedRecording.id.substring(0, 8),
+            transcription: updatedRecording.transcriptionStatus,
+            summary: updatedRecording.summaryStatus,
+            hasTranscript: !!updatedRecording.transcript,
+            hasSummary: !!updatedRecording.summary
+          });
+          setSelectedRecording(updatedRecording);
+        }
+      }
     }
   }, [recordings, selectedRecording, setSelectedRecording]);
 
@@ -140,10 +228,40 @@ const DashBoard = () => {
         loading={loadingRecordings}
         isLoadingUser={isPending}
         user={session?.user}
-        onUploadComplete={() => {
-          refetchRecordings();
+        onUploadComplete={async (data) => {
+          console.log('📤 [UPLOAD] Upload complete, invalidating cache and refetching...');
+          
+          // CRITICAL: Invalidate the cache first to force React Query to fetch fresh data
+          // Otherwise it returns stale cached data with undefined status fields
+          await queryClient.invalidateQueries({ queryKey: ['recordings'] });
+          
+          // Now refetch to get FRESH data from server (not cached data)
+          const { data: freshData } = await refetchRecordings();
+          
+          console.log('📤 [UPLOAD] Refetch complete, recordings:', freshData?.length);
+          
+          // Select the newly uploaded recording from the fetched list
+          if (data?.id && freshData) {
+            console.log('📤 [UPLOAD] Auto-selecting recording:', data.id.substring(0, 8));
+            
+            // Find in the fresh recordings array
+            const freshRecording = freshData.find((r: recording) => r.id === data.id);
+            if (freshRecording) {
+              console.log('📤 [UPLOAD] Found recording with status:', {
+                transcription: freshRecording.transcriptionStatus,
+                summary: freshRecording.summaryStatus,
+                title: freshRecording.title,
+                hasTranscript: !!freshRecording.transcript,
+                hasSummary: !!freshRecording.summary,
+              });
+              setSelectedRecording(freshRecording);
+            } else {
+              console.log('📤 [UPLOAD] Recording not found in fresh data yet');
+            }
+          }
+          
           toast.success("Recording uploaded!", {
-            description: "Your recording has been uploaded and is being processed.",
+            description: "Your recording is being transcribed and summarized.",
           });
         }}
       />
