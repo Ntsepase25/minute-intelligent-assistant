@@ -20,7 +20,7 @@ const corsOptions = {
       process.env.FRONTEND_BASE_URL || "https://minute-intelligent-assistant.vercel.app",
       "https://minute-intelligent-assistant.onrender.com",
       "http://localhost:5173",
-      "http://localhost:8080"
+      "https://minute-intelligent-assistant.onrender.com"
     ];
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin || allowedOrigins.indexOf(origin) !== -1) {
